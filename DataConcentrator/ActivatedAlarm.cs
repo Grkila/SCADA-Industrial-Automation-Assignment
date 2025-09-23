@@ -1,8 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -12,23 +8,26 @@ namespace DataConcentrator
     public class ActivatedAlarm
     {
         [Key]
-        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-        public int Id { get; set; }
+        public int Id { get; set; }  // Add primary key
 
         [Required]
-        [StringLength(Alarm.MAX_ID_LENGTH)]
+        [StringLength(50)]
+        [ForeignKey("Alarm")]
         public string AlarmId { get; set; }
 
         [Required]
-        [StringLength(Tag.MAX_ID_LENGTH)]
+        [StringLength(50)]
         public string TagName { get; set; }
 
         [Required]
-        [StringLength(Alarm.MAX_MESSAGE_LENGTH)]
+        [StringLength(1000)]
         public string Message { get; set; }
 
         [Required]
         public DateTime AlarmTime { get; set; }
+
+        // Navigation property
+        public virtual Alarm Alarm { get; set; }
 
         public ActivatedAlarm()
         {
@@ -41,7 +40,6 @@ namespace DataConcentrator
             Message = message;
             AlarmTime = alarmTime;
         }
-
         public ActivatedAlarm(Alarm alarm, string tagName)
         {
             AlarmId = alarm.Id;

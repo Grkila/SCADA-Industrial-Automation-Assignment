@@ -1,19 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-/*- - - -
- * davanje i uklanjanje alarma nad ulaznim analognim veličinama sa 
-sledećim osobinama: 
- vrednost granice veličine, 
- da li se alarm aktivira kada vrednost veličine pređe iznad ili ispod 
-vrednosti granice, 
- poruku o alarmu. 
---- - -*/
+
 namespace DataConcentrator
 {
     public enum AlarmTrigger
@@ -28,29 +20,9 @@ namespace DataConcentrator
         public const int MAX_ID_LENGTH = 50;
         public const int MAX_MESSAGE_LENGTH = 1000;
 
-        private AlarmTrigger _trigger;
-        private double _threshold;
-        private string _message;
-        private string _id;
-
         [Key]
         [StringLength(MAX_ID_LENGTH)]
-        public string Id
-        {
-            get
-            {
-                return _id;
-            }
-            set
-            {
-                if (string.IsNullOrWhiteSpace(value))
-                    throw new InvalidOperationException("Id cannot be null or empty.");
-                if (value.Length > MAX_ID_LENGTH)
-                    throw new InvalidOperationException($"Id cannot exceed {MAX_ID_LENGTH} characters.");
-
-                _id = value;
-            }
-        }
+        public string Id { get; set; }
 
         [Required]
         [StringLength(MAX_ID_LENGTH)]
@@ -58,75 +30,75 @@ namespace DataConcentrator
         public string TagId { get; set; }
 
         [Required]
-        public AlarmTrigger Trigger {
-            get => _trigger;
-            set
-            {
-                if (!Enum.IsDefined(typeof(AlarmTrigger), value))
-                    throw new InvalidOperationException($"Invalid AlarmTrigger value: {value}");
-                _trigger = value;
-            }
-        }
+        public AlarmTrigger Trigger { get; set; }
 
         [Required]
-        public double Threshold 
-        {
-            get
-            {
-                return _threshold;
-            }
-            set
-            {
-                if (double.IsNaN(value))
-                    throw new ArgumentException("Threshold cannot be NaN");
-                if (double.IsInfinity(value))
-                    throw new ArgumentException("Threshold cannot be Infinity");
-                _threshold = value;
-            }
-        }
-        
+        public double Threshold { get; set; }
+
         [Required]
         [StringLength(MAX_MESSAGE_LENGTH)]
-        public string Message 
-        { 
-            get
-            {
-                return _message;
-            }
-            set
-            {
-                if (string.IsNullOrWhiteSpace(value))
-                    throw new InvalidOperationException("Message cannot be null or empty.");
-                if (value.Length > MAX_MESSAGE_LENGTH)
-                    throw new InvalidOperationException($"Message cannot exceed {MAX_MESSAGE_LENGTH} characters.");
+        public string Message { get; set; }
 
-                _message = value;
-            }
-        }
-
-        public bool IsActive { get; set; } // Da li je alarm trenutno aktivan
-        public bool IsAcknowledged { get; private set; }
-        public DateTime? ActivationTime { get; private set; }
+        public bool IsActive { get; set; }
+        public bool IsAcknowledged { get; set; }
+        public DateTime? ActivationTime { get; set; }
 
         // Navigation property
         public virtual Tag Tag { get; set; }
 
-        // Dodajte prazan konstruktor za Entity Framework
         public Alarm()
         {
         }
 
         public Alarm(string id, AlarmTrigger trigger, double threshold, string message)
         {
-            Id = id;
-            Trigger = trigger;
-            Threshold = threshold;
-            Message = message;
+            ValidateAndSetId(id);
+            ValidateAndSetTrigger(trigger);
+            ValidateAndSetThreshold(threshold);
+            ValidateAndSetMessage(message);
         }
+
+        // Validacione metode
+        public void ValidateAndSetId(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                throw new InvalidOperationException("Id cannot be null or empty.");
+            if (value.Length > MAX_ID_LENGTH)
+                throw new InvalidOperationException($"Id cannot exceed {MAX_ID_LENGTH} characters.");
+            Id = value;
+        }
+
+        public void ValidateAndSetTrigger(AlarmTrigger value)
+        {
+            if (!Enum.IsDefined(typeof(AlarmTrigger), value))
+                throw new InvalidOperationException($"Invalid AlarmTrigger value: {value}");
+            Trigger = value;
+        }
+
+        public void ValidateAndSetThreshold(double value)
+        {
+            if (double.IsNaN(value))
+                throw new ArgumentException("Threshold cannot be NaN");
+            if (double.IsInfinity(value))
+                throw new ArgumentException("Threshold cannot be Infinity");
+            Threshold = value;
+        }
+
+        public void ValidateAndSetMessage(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                throw new InvalidOperationException("Message cannot be null or empty.");
+            if (value.Length > MAX_MESSAGE_LENGTH)
+                throw new InvalidOperationException($"Message cannot exceed {MAX_MESSAGE_LENGTH} characters.");
+            Message = value;
+        }
+
+        // Business logika
         public bool CheckTriggerCondition(double currentValue)
         {
             return Trigger == AlarmTrigger.Above ? currentValue > Threshold : currentValue < Threshold;
         }
+
         public bool TryActivate(double currentValue)
         {
             bool shouldBeActive = CheckTriggerCondition(currentValue);
@@ -142,7 +114,6 @@ namespace DataConcentrator
             return false;
         }
 
-        // 2. ACKNOWLEDGE - operater potvrđuje da je video alarm
         public bool Acknowledge()
         {
             if (IsActive && !IsAcknowledged)
@@ -153,7 +124,6 @@ namespace DataConcentrator
             return false;
         }
 
-        // 3. RESET - resetuje alarm kada je potvrđen i vrednost je OK
         public bool Reset(double currentValue)
         {
             if (IsActive && IsAcknowledged && !CheckTriggerCondition(currentValue))
@@ -163,6 +133,15 @@ namespace DataConcentrator
                 return true;
             }
             return false;
+        }
+
+        // Validacija celokupnog objekta
+        public void ValidateConfiguration()
+        {
+            ValidateAndSetId(Id);
+            ValidateAndSetTrigger(Trigger);
+            ValidateAndSetThreshold(Threshold);
+            ValidateAndSetMessage(Message);
         }
     }
 }
