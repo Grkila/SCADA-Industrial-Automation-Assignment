@@ -112,7 +112,7 @@ namespace DataConcentrator
         }
 
         private Dictionary<string, object> properties;
-        // public List<Alarm> Alarms { get; set; } //TODO: implementirati klasu Alarm
+        private List<Alarm> Alarms { get; set; } //TODO: implementirati klasu Alarm
 
         public Tag()
         {

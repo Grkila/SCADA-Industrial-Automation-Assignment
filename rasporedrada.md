@@ -1,91 +1,55 @@
-## Raspored rada i podela zadataka
-
-Ovaj dokument definiše podelu posla za dvoje, milestone‑e, očekivane isporuke i zajedničke interfejse između backend‑a i GUI‑ja.
-
-## Trenutno stanje
-- **Implementirano**: funkcionalan `PLCSimulatorManager` (generisanje AI/DI, setovanje AO/DO)
-- **Nedostaje**: modeli i logika u `DataConcentrator` (`Tag`, `Alarm`, `ActivatedAlarm`, `ContextClass`), WPF GUI (`MainWindow`) je skeleton
-
-## Podela posla
-
-### Osoba A — Backend (DataConcentrator + Simulator proširenja)
-- **Modeli i konfiguracija**
-  - Definisati `Tag` hijerarhiju: AI, AO, DI, DO (adresa, opis, sken period, inženjerske granice, poslednja vrednost, kvalitet)
-  - `Alarm`: tip (HI, HIHI, LO, LOLO), prag, prioritet, histereza
-  - `ActivatedAlarm`: vreme aktivacije/deaktivacije, acknowledged, komentar
-  - `ContextClass`: minimalna perzistencija (SQLite/EF Core ili JSON fajl) za tagove, istoriju merenja i istoriju alarma
-- **Driver i scan engine**
-  - Interfejs `IPlcDriver` koji wrap‑uje `PLCSimulatorManager` (Get/Set analog/digital)
-  - Scan engine (timer/background task) koji periodično čita AI/DI i prosleđuje promene
-  - Validacije adresa i jedinstvenosti tagova
-- **Alarm engine**
-  - Detekcija uslova sa histerezom i debouncing‑om
-  - Generisanje `ActivatedAlarm`, ack/shelve mehanizam
-  - Logovanje u istoriju i event‑ovi za GUI
-- **Historian**
-  - Upis uzoraka (npr. 1–5 s) i API za čitanje trendova (interval, downsampling)
-- **Simulator poboljšanja**
-  - Dodati još DI/DO adresa (po 4–8)
-  - Zameniti `Thread.Abort()` cancellation token‑ima; zadržati thread‑safe pristup
-- **Testovi**
-  - Jedinični testovi za alarm logiku, histerezu i validaciju tagova
-
-**Isporuke (A)**
-- Kompletni modeli i konfiguracija u `DataConcentrator`
-- Driver, scan i alarm engine, historian
-- Serijalizacija konfiguracije (Load/Save)
-- In‑proc API i event‑ovi koje GUI koristi
-
-### Osoba B — GUI (WPF ScadaGUI, MVVM)
-- **Arhitektura**
-  - MVVM slojevi: ViewModels (Tagovi, Alarmi, Trend, Komande), Services (referenca na `DataConcentrator`), RelayCommand
-- **Ekrani**
-  - Tag Management: lista, dodaj/izmeni/obriši, validacije, bindovanje
-  - Realtime pregled: tabela AI/DI (bojenje kvaliteta, filteri)
-  - Komande: postavljanje AO/DO sa potvrdom akcije
-  - Alarmi: Active Alarms (boje po prioritetu, ack, shelve), Alarm History sa filtrima
-  - Trendovi: izbor tagova, vremenski opseg, auto‑refresh (bez spoljašnjih biblioteka ili minimalno)
-- **Integracija**
-  - Subscribovanje na evente iz `DataConcentrator` (promena vrednosti / nov alarm)
-  - Load/Save konfiguracije preko backend servisa
-  - Status bar: status skenera, broj aktivnih alarma, globalne greške
-- **Testovi**
-  - ViewModel testovi (komande, validacije) uz mock servis
-
-**Isporuke (B)**
-- Funkcionalni WPF UI sa MVVM i integracijom na backend
-- Ekrani za tagove, alarme (aktivni + istorija), trendove i komande
-
-## Zajednički interfejsi i ugovori
-- **DTO/kontrakti** (dogovoriti pre rada): `TagDTO`, `AlarmDTO`, `ActivatedAlarmDTO`, `SampleDTO`
-- **Event‑ovi** koje backend emituje:
-  - `ValueChanged(tagId, value, quality, timestamp)`
-  - `AlarmChanged(activatedAlarmDTO)`
-- **Konfiguracija**: backend obezbeđuje serijalizaciju (JSON/SQLite), GUI poziva Load/Save
-
-## Milestone‑i (okvirno)
-- **M1 (2–3 dana)**
-  - Dogovor DTO‑a i event interfejsa
-  - Skeleton MVVM u GUI‑ju
-  - Scan engine čita AI/DI iz simulatora i emituje `ValueChanged`
-- **M2 (3–4 dana)**
-  - CRUD tagova i validacije u GUI‑ju
-  - Osnovna alarm detekcija u backend‑u i prikaz Active Alarms
-- **M3 (3–4 dana)**
-  - Historian + Trend ekran
-  - Ack/shelve + Alarm History u GUI‑ju
-  - Komande AO/DO iz GUI‑ja
-- **M4 (2 dana)**
-  - Stabilizacija, testovi, dokumentacija i demo scenario
-
-## Kriterijumi prihvatanja
-- Stabilan scan bez blokiranja UI‑ja; bez `Thread.Abort()` u produkcionom kodu
-- Alarm histereza i ack/shelve funkcionišu i beleže se u istoriji
-- Trend prikazuje više tagova uz izbor perioda i basic downsampling
-- Komande AO/DO imaju potvrdu i audit log
-- Konfiguracija se pouzdano učitava/čuva; validacije sprečavaju nevažeće adrese
-
-## Napomene
-- Proširiti simulator dodatnim DI/DO adresama (npr. `ADDR011`–`ADDR016`)
-- Dogovoriti ID‑eve tagova (GUID/string) i format timestamp‑a (UTC)
-
+Implementirati SCADA sistem koji podržava sledeće funkcionalnosti: - - - - - 
+dodavanje i uklanjanje analognih i digitalnih veličina (tags) sa sledećim 
+osobinama: 
+ Tip taga (enumeracija: DI, DO, AI ili AO) 
+ Tag name (id) 
+ Description 
+ I/O addres 
+ Scan time (moguće uneti samo za input tagove) 
+ On/off scan (moguće uneti samo za input tagove) 
+ Low limit (moguće uneti samo za analogne tagove) 
+ High Limit (moguće uneti samo za analogne tagove) 
+ Units (moguće uneti samo za analogne tagove) 
+ Initial value (moguće uneti samo za output tagove) 
+ Alarms (ne unosi se prilikom pravljenja taga nego se prilikom 
+pravljenja alarma on veže za određeni AI) 
+Sve zajedničke karakteristike tagova neka budu posebno bolje. Ostale 
+karakteristike smestiti u rečnik. 
+Izvršiti validaciju unesenih vrednosti i onemogućiti korisnika da unese 
+neadekvatne podatke (npr. ne može se uneti units za digitalne tagove). 
+dodavanje i uklanjanje alarma nad ulaznim analognim veličinama sa 
+sledećim osobinama: 
+ vrednost granice veličine, 
+ da li se alarm aktivira kada vrednost veličine pređe iznad ili ispod 
+vrednosti granice, 
+ poruku o alarmu. 
+pisanje vrednosti u digitalnu ili analognu izlaznu veličinu 
+uključivanje i isključivanje skeniranja ulaznih tagova (on/off scan). 
+čuvanje/iščitavanje konfiguracije (veličine i alarmi nad veličinama) u/iz 
+baze podataka pri zatvaranju/pokretanju SCADA aplikacije. Potrebno je 
+napraviti 3 tabele u bazi podataka: tagovi, alarmi i aktivirani alarmi. 
+Scada WPF app predstavlja grafički interfejs pomoću kojeg korisnik može da 
+doda/ukloni veličine, doda/ukloni alarme nad veličinama, upiše vrednost u 
+određenu veličinu i služi za prikaz najnovijih informacija o promeni vrednosti 
+veličina i informacija o najnovijim alarmima koji su se desili u sistemu. 
+Data Concentrator predstavlja softversku komponentu koja sadrži sve 
+trenutne vrednosti veličina i sve informacije o veličinama i alarmima. Data 
+Concentrator na svaku promenu vrednosti veličine ispisuje da li je veličina u 
+alarmnoj zoni. Ako jeste, izvršavaju se sledeći koraci: 
+U bazu podataka upisuju se informacije o alarmu koji se desio: 
+id alarma, 
+naziv veličine nad kojom se desio alarm, 
+poruka o alarmu, 
+vreme alarma. 
+Aktivira se događaj da se alarm sa datim ID-em desio. Data Concentrator je 
+publisher, a Scada WPF app je subscriber. 
+Scada WPF app obradi događaj tako što pročita iz baze podataka vrednost 
+alarma sa datim ID-em i prikaže informacije na korisničkom interfejsu. 
+Dodatno, na grafičkom interfejsu se nalazi dugme REPORT koje, kada kliknemo 
+na njega, generiše .txt fajl u kom se nalaze podaci o vrednostima analognih ulaza 
+kada su imali vrednost ℎ𝑖𝑔ℎ_𝑙𝑖𝑚𝑖𝑡 + 𝑙𝑜𝑤_𝑙𝑖𝑚𝑖𝑡
+ 2
+ ±5.   
+PLC Simulator predstavlja izvor vrednosti veličina koje se simuliraju. Veličine 
+koje se defi- nišu u Scada WPF komponenti preko atributa I/O address 
+mapiraju se na određenu vrednost iz kolekcije u PLC Simulator-u. Potrebno je

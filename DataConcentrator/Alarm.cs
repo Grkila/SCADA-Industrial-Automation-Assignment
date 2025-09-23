@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 /*- - - -
@@ -21,11 +22,30 @@ namespace DataConcentrator
 
     internal class Alarm
     {
+        private const int MAX_ID_LENGTH = 50;
         private const int MAX_MESSAGE_LENGTH = 1000;
 
         private AlarmTrigger _trigger;
         private double _threshold;
         private string _message;
+        private string _id;
+        public string Id
+        {
+            get
+            {
+                return _id;
+            }
+            set
+            {
+                if (string.IsNullOrWhiteSpace(value))
+                    throw new InvalidOperationException("Id cannot be null or empty.");
+                if (value.Length > MAX_ID_LENGTH)
+                    throw new InvalidOperationException($"Id cannot exceed {MAX_ID_LENGTH} characters.");
+
+                _id = value;
+            }
+        }
+        public string TagId { get; set; } // ID of the associated Tag (AI)
 
         public AlarmTrigger Trigger {
             get => _trigger;
@@ -69,12 +89,58 @@ namespace DataConcentrator
                 _message = value;
             }
         }
-        
-        Alarm(AlarmTrigger trigger, double threshold, string message)
+
+        public bool IsActive { get; set; } // Da li je alarm trenutno aktivan
+        public bool IsAcknowledged { get; private set; }
+        public DateTime? ActivationTime { get; private set; }
+
+        public Alarm(string id,AlarmTrigger trigger, double threshold, string message)
         {
+            Id = id;
             Trigger = trigger;
             Threshold = threshold;
             Message = message;
+        }
+        public bool CheckTriggerCondition(double currentValue)
+        {
+            return Trigger == AlarmTrigger.Above ? currentValue > Threshold : currentValue < Threshold;
+        }
+        public bool TryActivate(double currentValue)
+        {
+            bool shouldBeActive = CheckTriggerCondition(currentValue);
+
+            if (!IsActive && shouldBeActive)
+            {
+                IsActive = true;
+                IsAcknowledged = false;
+                ActivationTime = DateTime.Now;
+                return true; // Alarm je upravo aktiviran
+            }
+
+            return false;
+        }
+
+        // 2. ACKNOWLEDGE - operater potvrđuje da je video alarm
+        public bool Acknowledge()
+        {
+            if (IsActive && !IsAcknowledged)
+            {
+                IsAcknowledged = true;
+                return true;
+            }
+            return false;
+        }
+
+        // 3. RESET - resetuje alarm kada je potvrđen i vrednost je OK
+        public bool Reset(double currentValue)
+        {
+            if (IsActive && IsAcknowledged && !CheckTriggerCondition(currentValue))
+            {
+                IsActive = false;
+                ActivationTime = null;
+                return true;
+            }
+            return false;
         }
     }
 }
