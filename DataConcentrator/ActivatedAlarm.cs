@@ -3,16 +3,32 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace DataConcentrator
 {
-    internal class ActivatedAlarm
+    [Table("ActivatedAlarms")]
+    public class ActivatedAlarm
     {
+        [Key]
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+        public int Id { get; set; }
 
-        public string AlarmId { get; set; }          
-        public string TagName { get; set; }          
-        public string Message { get; set; }          
-        public DateTime AlarmTime { get; set; }      
+        [Required]
+        [StringLength(Alarm.MAX_ID_LENGTH)]
+        public string AlarmId { get; set; }
+
+        [Required]
+        [StringLength(Tag.MAX_ID_LENGTH)]
+        public string TagName { get; set; }
+
+        [Required]
+        [StringLength(Alarm.MAX_MESSAGE_LENGTH)]
+        public string Message { get; set; }
+
+        [Required]
+        public DateTime AlarmTime { get; set; }
 
         public ActivatedAlarm()
         {
@@ -25,6 +41,7 @@ namespace DataConcentrator
             Message = message;
             AlarmTime = alarmTime;
         }
+
         public ActivatedAlarm(Alarm alarm, string tagName)
         {
             AlarmId = alarm.Id;

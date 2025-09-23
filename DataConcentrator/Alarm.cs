@@ -4,6 +4,8 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 /*- - - -
  * davanje i uklanjanje alarma nad ulaznim analognim veličinama sa 
 sledećim osobinama: 
@@ -20,15 +22,19 @@ namespace DataConcentrator
         Below
     }
 
-    internal class Alarm
+    [Table("Alarms")]
+    public class Alarm
     {
-        private const int MAX_ID_LENGTH = 50;
-        private const int MAX_MESSAGE_LENGTH = 1000;
+        public const int MAX_ID_LENGTH = 50;
+        public const int MAX_MESSAGE_LENGTH = 1000;
 
         private AlarmTrigger _trigger;
         private double _threshold;
         private string _message;
         private string _id;
+
+        [Key]
+        [StringLength(MAX_ID_LENGTH)]
         public string Id
         {
             get
@@ -45,8 +51,13 @@ namespace DataConcentrator
                 _id = value;
             }
         }
-        public string TagId { get; set; } // ID of the associated Tag (AI)
 
+        [Required]
+        [StringLength(MAX_ID_LENGTH)]
+        [ForeignKey("Tag")]
+        public string TagId { get; set; }
+
+        [Required]
         public AlarmTrigger Trigger {
             get => _trigger;
             set
@@ -57,6 +68,7 @@ namespace DataConcentrator
             }
         }
 
+        [Required]
         public double Threshold 
         {
             get
@@ -73,6 +85,8 @@ namespace DataConcentrator
             }
         }
         
+        [Required]
+        [StringLength(MAX_MESSAGE_LENGTH)]
         public string Message 
         { 
             get
@@ -94,7 +108,15 @@ namespace DataConcentrator
         public bool IsAcknowledged { get; private set; }
         public DateTime? ActivationTime { get; private set; }
 
-        public Alarm(string id,AlarmTrigger trigger, double threshold, string message)
+        // Navigation property
+        public virtual Tag Tag { get; set; }
+
+        // Dodajte prazan konstruktor za Entity Framework
+        public Alarm()
+        {
+        }
+
+        public Alarm(string id, AlarmTrigger trigger, double threshold, string message)
         {
             Id = id;
             Trigger = trigger;
