@@ -3,16 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-
+using Common;
 namespace DataConcentrator
 {
-    public enum TagType
-    {
-        DI,
-        DO,
-        AI,
-        AO
-    }
+
 
     [Table("Tags")]
     public class Tag
@@ -34,7 +28,7 @@ namespace DataConcentrator
         public int IOAddress { get; set; }
 
         [Required]
-        public TagType Type { get; set; }
+        public Common.TagType Type { get; set; }
 
         // Direktna svojstva koja se mapiraju u bazu
         public double? ScanTime { get; set; }
@@ -52,7 +46,7 @@ namespace DataConcentrator
             Alarms = new List<Alarm>();
         }
 
-        public Tag(TagType type, string id, string description, int ioAddress) : this()
+        public Tag(Common.TagType type, string id, string description, int ioAddress) : this()
         {
             Type = type;
             Id = id;
