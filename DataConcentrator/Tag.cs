@@ -48,7 +48,10 @@ namespace DataConcentrator
 
         public TagType Type
         {
-            get => _type;
+            get
+            {
+                return _type;
+            }
             set
             {
                 if (!Enum.IsDefined(typeof(TagType), value))
