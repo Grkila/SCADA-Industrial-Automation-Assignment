@@ -3,10 +3,16 @@ using System.Collections.Generic;
 using System.Linq;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using Common;
+
 namespace DataConcentrator
 {
-
+    public enum TagType
+    {
+        DI,
+        DO,
+        AI,
+        AO
+    }
 
     [Table("Tags")]
     public class Tag
@@ -28,7 +34,7 @@ namespace DataConcentrator
         public int IOAddress { get; set; }
 
         [Required]
-        public Common.TagType Type { get; set; }
+        public TagType Type { get; set; }
 
         // Direktna svojstva koja se mapiraju u bazu
         public double? ScanTime { get; set; }
@@ -38,6 +44,9 @@ namespace DataConcentrator
         public string Units { get; set; }
         public double? InitialValue { get; set; }
 
+        // Dodaj ovo svojstvo u Tag klasu
+        public double? CurrentValue { get; set; }
+
         // Navigation property za alarme
         public virtual ICollection<Alarm> Alarms { get; set; }
 
@@ -46,7 +55,7 @@ namespace DataConcentrator
             Alarms = new List<Alarm>();
         }
 
-        public Tag(Common.TagType type, string id, string description, int ioAddress) : this()
+        public Tag(TagType type, string id, string description, int ioAddress) : this()
         {
             Type = type;
             Id = id;
@@ -95,6 +104,25 @@ namespace DataConcentrator
             if (!IsOutputTag())
                 throw new InvalidOperationException("InitialValue can only be set for output tags (AO, DO).");
             InitialValue = value;
+        }
+
+        // Dodaj metodu za pisanje vrednosti
+        public void WriteValue(double value)
+        {
+            if (!IsOutputTag())
+                throw new InvalidOperationException("WriteValue can only be called on output tags (AO, DO).");
+            
+            if (IsDigitalTag() && value != 0 && value != 1)
+                throw new ArgumentException("Digital tags can only accept values 0 or 1.");
+            
+            CurrentValue = value;
+            Console.WriteLine($" Written {value} to tag {Id}");
+        }
+
+        // Dodaj metodu za čitanje trenutne vrednosti
+        public double GetCurrentValue()
+        {
+            return CurrentValue ?? InitialValue ?? 0;
         }
 
         // Helper metode za validaciju tipova
