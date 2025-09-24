@@ -300,17 +300,19 @@ namespace DataConcentrator
         {
             // Ovde možeš dodati mapiranje ili direktno pisanje
             if (plcSimulator == null) return; // Add this check
-    
+            string address = "ADR"+tag.IOAddress.ToString("D3");
             switch (tag.Type)
             {
                 case TagType.AO:
                     // Za analog output - pošalji u PLC simulator
-                    plcSimulator.SetAnalogValue("ADDR005", value); // Ili mapiranje
+                    plcSimulator.SetAnalogValue(address, value);
                     break;
                     
                 case TagType.DO:
-                    // Za digital output - pošalji u PLC simulator  
-                    plcSimulator.SetDigitalValue("ADDR010", value); // Ili mapiranje
+                    // Za digital output - pošalji u PLC simulator
+                    if (value != 0 && value != 1)
+                        throw new InvalidOperationException("Digital output value must be 0 or 1.");
+                    plcSimulator.SetDigitalValue(address, value);
                     break;
             }
         }
