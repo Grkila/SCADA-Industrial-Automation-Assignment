@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Data.Entity;
 using System.Data.Entity.ModelConfiguration.Conventions;
+using System.Data.Entity.Validation;
+using System.Linq;
+using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace DataConcentrator
 {
@@ -67,8 +68,34 @@ namespace DataConcentrator
 
         public void AddAlarm(Alarm alarm)
         {
-            Alarms.Add(new Alarm { TagName = alarm.TagName, Type = alarm.Type, Limit = alarm.Limit, Message = alarm.Message });
-            SaveChanges();
+            try
+            {
+                Alarms.Add(new Alarm
+                {
+                    Id = Guid.NewGuid().ToString(),  // Simple GUID-based unique ID
+                    TagName = alarm.TagName,
+                    Type = alarm.Type,
+                    Limit = alarm.Limit,
+                    Message = alarm.Message
+                });
+
+                SaveChanges();
+            }
+            catch (DbEntityValidationException ex)
+            {
+                // This is the crucial part to find the error
+                foreach (var entityValidationErrors in ex.EntityValidationErrors)
+                {
+                    foreach (var validationError in entityValidationErrors.ValidationErrors)
+                    {
+                        // Use Console.WriteLine or Debug.WriteLine to see the error
+                        System.Diagnostics.Debug.WriteLine(
+                            $"Entity: {entityValidationErrors.Entry.Entity.GetType().Name}, Property: {validationError.PropertyName}, Error: {validationError.ErrorMessage}");
+                    }
+                }
+                // Re-throw the exception if you want the application to still crash
+                throw;
+            }
         }
 
         public void DeleteAlarm(Alarm alarm)
