@@ -53,16 +53,39 @@ namespace DataConcentrator
 
             lock (locker)
             {
-                tags.Add(tag);
-
-                // Ako je sistem pokrenut i tag treba skenirati, pokreni timer
-                if (isRunning && ShouldScanTag(tag))
+                try
                 {
-                    StartTimerForTag(tag);
+                    // Save to database first
+                    using (var context = new ContextClass())
+                    {
+                        // Check if tag already exists
+                        if (context.Tags.Any(t => t.Id == tag.Id))
+                        {
+                            throw new InvalidOperationException($"Tag with ID '{tag.Id}' already exists in database.");
+                        }
+
+                        context.Tags.Add(tag);
+                        context.SaveChanges();
+                        Console.WriteLine($"Tag {tag.Id} saved to database");
+                    }
+
+                    // Then add to in-memory collection
+                    tags.Add(tag);
+
+                    // Start timer if needed
+                    if (isRunning && ShouldScanTag(tag))
+                    {
+                        StartTimerForTag(tag);
+                    }
+
+                    Console.WriteLine($"Added tag {tag.Id} to DataCollector");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error adding tag {tag.Id}: {ex.Message}");
+                    throw;
                 }
             }
-
-            Console.WriteLine($" Added tag {tag.Id}");
         }
 
         public void RemoveTag(string tagId)
@@ -72,17 +95,185 @@ namespace DataConcentrator
 
             lock (locker)
             {
-                var tagToRemove = tags.FirstOrDefault(t => t.Id == tagId);
-                if (tagToRemove != null)
+                try
                 {
-                    tags.Remove(tagToRemove);
+                    // Remove from database first
+                    using (var context = new ContextClass())
+                    {
+                        var dbTag = context.Tags.FirstOrDefault(t => t.Id == tagId);
+                        if (dbTag != null)
+                        {
+                            context.Tags.Remove(dbTag);
+                            context.SaveChanges();
+                            Console.WriteLine($"Tag {tagId} removed from database");
+                        }
+                    }
 
-                    // Zaustavi timer za ovaj tag
-                    StopTimerForTag(tagId);
+                    // Remove from in-memory collection
+                    var tagToRemove = tags.FirstOrDefault(t => t.Id == tagId);
+                    if (tagToRemove != null)
+                    {
+                        tags.Remove(tagToRemove);
+                        StopTimerForTag(tagId);
+                        Console.WriteLine($"Removed tag {tagId} from DataCollector");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error removing tag {tagId}: {ex.Message}");
+                    throw;
                 }
             }
+        }
 
-            Console.WriteLine($" Removed tag {tagId}");
+        // Also need methods for updating existing tags
+        public void UpdateTag(Tag updatedTag)
+        {
+            if (updatedTag == null)
+                throw new ArgumentNullException(nameof(updatedTag));
+
+            lock (locker)
+            {
+                try
+                {
+                    // Update in database
+                    using (var context = new ContextClass())
+                    {
+                        var dbTag = context.Tags.FirstOrDefault(t => t.Id == updatedTag.Id);
+                        if (dbTag == null)
+                        {
+                            throw new InvalidOperationException($"Tag {updatedTag.Id} not found in database");
+                        }
+
+                        // Update properties
+                        dbTag.Description = updatedTag.Description;
+                        dbTag.IOAddress = updatedTag.IOAddress;
+                        dbTag.CharacteristicsJson = updatedTag.CharacteristicsJson;
+                        
+                        context.SaveChanges();
+                        Console.WriteLine($"Tag {updatedTag.Id} updated in database");
+                    }
+
+                    // Update in-memory collection
+                    var existingTag = tags.FirstOrDefault(t => t.Id == updatedTag.Id);
+                    if (existingTag != null)
+                    {
+                        // Stop current timer
+                        StopTimerForTag(updatedTag.Id);
+                        
+                        // Replace tag
+                        tags.Remove(existingTag);
+                        tags.Add(updatedTag);
+                        
+                        // Restart timer if needed
+                        if (isRunning && ShouldScanTag(updatedTag))
+                        {
+                            StartTimerForTag(updatedTag);
+                        }
+                    }
+
+                    Console.WriteLine($"Tag {updatedTag.Id} updated in DataCollector");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error updating tag {updatedTag.Id}: {ex.Message}");
+                    throw;
+                }
+            }
+        }
+
+        // Method for adding alarms to existing tags
+        public void AddAlarmToTag(string tagId, Alarm alarm)
+        {
+            if (string.IsNullOrWhiteSpace(tagId))
+                throw new ArgumentException("Invalid tag ID", nameof(tagId));
+            if (alarm == null)
+                throw new ArgumentNullException(nameof(alarm));
+
+            lock (locker)
+            {
+                try
+                {
+                    using (var context = new ContextClass())
+                    {
+                        var dbTag = context.Tags.Include(t => t.Alarms)
+                            .FirstOrDefault(t => t.Id == tagId);
+                        
+                        if (dbTag == null)
+                        {
+                            throw new InvalidOperationException($"Tag {tagId} not found");
+                        }
+
+                        if (!dbTag.IsAnalogInputTag())
+                        {
+                            throw new InvalidOperationException("Alarms can only be added to AI tags");
+                        }
+
+                        alarm.TagId = tagId;
+                        context.Alarms.Add(alarm);
+                        context.SaveChanges();
+                        
+                        Console.WriteLine($"Alarm {alarm.Id} added to tag {tagId} in database");
+                    }
+
+                    // Update in-memory tag
+                    var memoryTag = tags.FirstOrDefault(t => t.Id == tagId);
+                    if (memoryTag != null)
+                    {
+                        memoryTag.Alarms.Add(alarm);
+                        Console.WriteLine($"Alarm {alarm.Id} added to tag {tagId} in memory");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error adding alarm to tag {tagId}: {ex.Message}");
+                    throw;
+                }
+            }
+        }
+
+        // Method for removing alarms from tags
+        public void RemoveAlarmFromTag(string tagId, string alarmId)
+        {
+            if (string.IsNullOrWhiteSpace(tagId))
+                throw new ArgumentException("Invalid tag ID", nameof(tagId));
+            if (string.IsNullOrWhiteSpace(alarmId))
+                throw new ArgumentException("Invalid alarm ID", nameof(alarmId));
+
+            lock (locker)
+            {
+                try
+                {
+                    // Remove from database
+                    using (var context = new ContextClass())
+                    {
+                        var alarm = context.Alarms.FirstOrDefault(a => a.Id == alarmId && a.TagId == tagId);
+                        if (alarm != null)
+                        {
+                            context.Alarms.Remove(alarm);
+                            context.SaveChanges();
+                            Console.WriteLine($"Alarm {alarmId} removed from database");
+                        }
+                    }
+
+                    // Remove from in-memory tag
+                    var tag = tags.FirstOrDefault(t => t.Id == tagId);
+                    if (tag != null)
+                    {
+                        var alarmToRemove = tag.Alarms.FirstOrDefault(a => a.Id == alarmId);
+                        if (alarmToRemove != null)
+                        {
+                            tag.Alarms.Remove(alarmToRemove);
+                            Console.WriteLine($"Alarm {alarmId} removed from tag {tagId} in memory");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error removing alarm {alarmId} from tag {tagId}: {ex.Message}");
+                    throw;
+                }
+            }
         }
 
         private void StopTimerForTag(string tagId)
@@ -95,27 +286,47 @@ namespace DataConcentrator
             }
         }
 
+        // Updated SetTagScanning method to persist configuration changes
         public void SetTagScanning(string tagId, bool enable)
         {
             lock (locker)
             {
-                var tag = tags.FirstOrDefault(t => t.Id == tagId);
-                if (tag != null && tag.IsInputTag())
+                try
                 {
-                    tag.ValidateAndSetOnOffScan(enable);
-
-                    if (enable && isRunning)
+                    // Update in database first
+                    using (var context = new ContextClass())
                     {
-                        // Uključi skeniranje - pokreni timer
-                        StartTimerForTag(tag);
-                    }
-                    else
-                    {
-                        // Isključi skeniranje - zaustavi timer
-                        StopTimerForTag(tagId);
+                        var dbTag = context.Tags.FirstOrDefault(t => t.Id == tagId);
+                        if (dbTag != null)
+                        {
+                            dbTag.OnOffScan = enable;
+                            context.SaveChanges();
+                            Console.WriteLine($"Tag {tagId} scan state updated in database: {enable}");
+                        }
                     }
 
-                    Console.WriteLine($"🔄 Tag {tagId} scanning: {(enable ? "ENABLED" : "DISABLED")}");
+                    // Update in memory
+                    var tag = tags.FirstOrDefault(t => t.Id == tagId);
+                    if (tag != null && tag.IsInputTag())
+                    {
+                        tag.ValidateAndSetOnOffScan(enable);
+
+                        if (enable && isRunning)
+                        {
+                            StartTimerForTag(tag);
+                        }
+                        else
+                        {
+                            StopTimerForTag(tagId);
+                        }
+
+                        Console.WriteLine($"Tag {tagId} scanning: {(enable ? "ENABLED" : "DISABLED")}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error updating scan state for {tagId}: {ex.Message}");
+                    throw;
                 }
             }
         }
@@ -150,8 +361,9 @@ namespace DataConcentrator
         }
         private string GetTagAddress(Tag tag)
         {
-           int IOadress = tag.IOAddress;
-              return $"ADDR{IOadress:D3}";
+            // Now IOAddress is already a string, so we can use it directly
+            // or format it if needed
+            return tag.IOAddress.StartsWith("ADDR") ? tag.IOAddress : $"ADDR{tag.IOAddress}";
         }
         private void StartAllTagTimers()
         {
@@ -240,29 +452,31 @@ namespace DataConcentrator
 
             Console.WriteLine($"Stopped all tag timers");
         }
+        // Updated ProcessTagValue method to persist current values
         private void ProcessTagValue(Tag tag, double currentValue)
         {
             tag.CurrentValue = currentValue;
+            
+            // Save current value to database periodically
+            SaveCurrentValueToDatabase(tag, currentValue);
 
             var timestamp = DateTime.Now;
             var scanTime = tag.ScanTime ?? 1000;
 
-            Console.WriteLine($"[{timestamp:HH:mm:ss.fff}]  {tag.Id}: {currentValue:F2} {tag.Units} (scan: {scanTime}ms)");
+            Console.WriteLine($"[{timestamp:HH:mm:ss.fff}] {tag.Id}: {currentValue:F2} {tag.Units} (scan: {scanTime}ms)");
 
-            // Proveri alarme samo za AI tagove
+            // Check alarms for AI tags
             if (tag.Type == TagType.AI)
             {
                 var triggeredAlarms = tag.CheckAlarms(currentValue);
 
                 if (triggeredAlarms.Any())
                 {
-                    Console.WriteLine($"ALARM na tag {tag.Id}:");
+                    Console.WriteLine($"ALARM on tag {tag.Id}:");
 
                     foreach (var alarm in triggeredAlarms)
                     {
                         Console.WriteLine($"   - {alarm.Id}: {alarm.Message}");
-
-                        // Sačuvaj aktivirani alarm u bazu podataka
                         SaveActivatedAlarm(alarm, tag.Id);
                     }
                 }
@@ -362,6 +576,27 @@ namespace DataConcentrator
                         Console.WriteLine($"🔧 Initialized tag {tag.Id} with value {tag.InitialValue.Value}");
                     }
                 }
+            }
+        }
+
+        // Method for persisting current values
+        private void SaveCurrentValueToDatabase(Tag tag, double currentValue)
+        {
+            try
+            {
+                using (var context = new ContextClass())
+                {
+                    var dbTag = context.Tags.FirstOrDefault(t => t.Id == tag.Id);
+                    if (dbTag != null)
+                    {
+                        dbTag.CurrentValue = currentValue;
+                        context.SaveChanges();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error saving current value for {tag.Id}: {ex.Message}");
             }
         }
 

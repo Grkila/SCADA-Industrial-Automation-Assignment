@@ -20,6 +20,7 @@ namespace DataConcentrator
     {
         public const int MAX_ID_LENGTH = 50;
         public const int MAX_DESCRIPTION_LENGTH = 300;
+        public const int MAX_IOADDRESS_LENGTH = 50;
         public const int MIN_IO_ADDRESS = 0;
         public const int MAX_IO_ADDRESS = 65535;
 
@@ -32,7 +33,8 @@ namespace DataConcentrator
         public string Description { get; set; }
 
         [Required]
-        public int IOAddress { get; set; }
+        [StringLength(MAX_IOADDRESS_LENGTH)]
+        public string IOAddress { get; set; }
 
         [Required]
         public TagType Type { get; set; }
@@ -142,7 +144,7 @@ namespace DataConcentrator
             Alarms = new List<Alarm>();
         }
 
-        public Tag(TagType type, string id, string description, int ioAddress) : this()
+        public Tag(TagType type, string id, string description, string ioAddress) : this()
         {
             Type = type;
             Id = id;
@@ -256,26 +258,35 @@ namespace DataConcentrator
                 throw new InvalidOperationException($"Alarm with ID '{alarm.Id}' already exists for this tag.");
             }
 
-            // NOVA PROVERA: Proverava da li alarm ID već postoji u bazi
             try
             {
                 using (var context = new ContextClass())
                 {
+                    // Check if alarm ID already exists in database
                     if (context.Alarms.Any(a => a.Id == alarm.Id))
                     {
-                        Console.WriteLine($"UPOZORENJE: Alarm sa ID '{alarm.Id}' već postoji u bazi podataka. Dodavanje preskočeno.");
-                        return; // Vraća se bez dodavanja alarma
+                        throw new InvalidOperationException($"Alarm with ID '{alarm.Id}' already exists in database.");
                     }
+
+                    // Set the foreign key
+                    alarm.TagId = this.Id;
+                    
+                    // Save to database
+                    context.Alarms.Add(alarm);
+                    context.SaveChanges();
+                    
+                    Console.WriteLine($"Alarm {alarm.Id} saved to database");
                 }
+                
+                // Add to in-memory collection only after successful database save
+                Alarms.Add(alarm);
+                Console.WriteLine($"Alarm {alarm.Id} added to tag {this.Id}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"GREŠKA pri proveri alarma u bazi: {ex.Message}. Dodavanje preskočeno.");
-                return;
+                Console.WriteLine($"Error adding alarm {alarm.Id}: {ex.Message}");
+                throw;
             }
-
-            alarm.TagId = this.Id;
-            Alarms.Add(alarm);
         }
 
         public bool RemoveAlarm(string alarmId)
@@ -285,12 +296,38 @@ namespace DataConcentrator
                 throw new InvalidOperationException("Alarms can only be managed on AI (Analog Input) tags.");
             }
 
-            var alarm = Alarms.FirstOrDefault(a => a.Id == alarmId);
-            if (alarm != null)
+            try
             {
-                return Alarms.Remove(alarm);
+                // Remove from database first
+                using (var context = new ContextClass())
+                {
+                    var dbAlarm = context.Alarms.FirstOrDefault(a => a.Id == alarmId && a.TagId == this.Id);
+                    if (dbAlarm != null)
+                    {
+                        context.Alarms.Remove(dbAlarm);
+                        context.SaveChanges();
+                        Console.WriteLine($"Alarm {alarmId} removed from database");
+                    }
+                }
+
+                // Remove from in-memory collection
+                var alarm = Alarms.FirstOrDefault(a => a.Id == alarmId);
+                if (alarm != null)
+                {
+                    bool removed = Alarms.Remove(alarm);
+                    if (removed)
+                    {
+                        Console.WriteLine($"Alarm {alarmId} removed from tag {this.Id}");
+                    }
+                    return removed;
+                }
+                return false;
             }
-            return false;
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error removing alarm {alarmId}: {ex.Message}");
+                throw;
+            }
         }
 
         public Alarm GetAlarm(string alarmId)
@@ -368,6 +405,55 @@ namespace DataConcentrator
             return Alarms.Where(a => a.IsActive && !a.IsAcknowledged).ToList();
         }
 
+        public void UpdateAlarm(Alarm updatedAlarm)
+        {
+            if (!IsAnalogInputTag())
+            {
+                throw new InvalidOperationException("Alarms can only be managed on AI (Analog Input) tags.");
+            }
+
+            if (updatedAlarm == null)
+            {
+                throw new ArgumentNullException(nameof(updatedAlarm));
+            }
+
+            try
+            {
+                // Update in database first
+                using (var context = new ContextClass())
+                {
+                    var dbAlarm = context.Alarms.FirstOrDefault(a => a.Id == updatedAlarm.Id && a.TagId == this.Id);
+                    if (dbAlarm == null)
+                    {
+                        throw new InvalidOperationException($"Alarm {updatedAlarm.Id} not found in database");
+                    }
+
+                    // Update properties
+                    dbAlarm.Trigger = updatedAlarm.Trigger;
+                    dbAlarm.Threshold = updatedAlarm.Threshold;
+                    dbAlarm.Message = updatedAlarm.Message;
+                    
+                    context.SaveChanges();
+                    Console.WriteLine($"Alarm {updatedAlarm.Id} updated in database");
+                }
+
+                // Update in-memory collection
+                var existingAlarm = Alarms.FirstOrDefault(a => a.Id == updatedAlarm.Id);
+                if (existingAlarm != null)
+                {
+                    existingAlarm.Trigger = updatedAlarm.Trigger;
+                    existingAlarm.Threshold = updatedAlarm.Threshold;
+                    existingAlarm.Message = updatedAlarm.Message;
+                    Console.WriteLine($"Alarm {updatedAlarm.Id} updated in memory");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error updating alarm {updatedAlarm.Id}: {ex.Message}");
+                throw;
+            }
+        }
+
         // Validacija celokupnog objekta
         public void ValidateConfiguration()
         {
@@ -379,8 +465,11 @@ namespace DataConcentrator
                 throw new InvalidOperationException("Description cannot be null or empty.");
             if (Description.Length > MAX_DESCRIPTION_LENGTH)
                 throw new InvalidOperationException($"Description cannot exceed {MAX_DESCRIPTION_LENGTH} characters.");
-            if (IOAddress < MIN_IO_ADDRESS || IOAddress > MAX_IO_ADDRESS)
-                throw new InvalidOperationException($"IO Address must be between {MIN_IO_ADDRESS} and {MAX_IO_ADDRESS}.");
+            
+            if (string.IsNullOrWhiteSpace(IOAddress))
+                throw new InvalidOperationException("IOAddress cannot be null or empty.");
+            if (IOAddress.Length > MAX_IOADDRESS_LENGTH)
+                throw new InvalidOperationException($"IOAddress cannot exceed {MAX_IOADDRESS_LENGTH} characters.");
         }
     }
 }
