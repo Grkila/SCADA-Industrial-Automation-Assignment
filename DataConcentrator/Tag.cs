@@ -36,19 +36,68 @@ namespace DataConcentrator
         [Required]
         public TagType Type { get; set; }
 
-        // Direktna svojstva koja se mapiraju u bazu
-        public double? ScanTime { get; set; }
-        public bool? OnOffScan { get; set; }
-        public double? LowLimit { get; set; }
-        public double? HighLimit { get; set; }
-        public string Units { get; set; }
-        public double? InitialValue { get; set; }
+        [Required]
+        private readonly Dictionary<string, object> _characteristics = new Dictionary<string, object>();
+
+        // Refaktorisani getteri i setteri koristeći dictionary
+        public double? ScanTime
+        {
+            get => GetCharacteristic<double?>("ScanTime");
+            set => SetCharacteristic("ScanTime", value);
+        }
+
+        public bool? OnOffScan
+        {
+            get => GetCharacteristic<bool?>("OnOffScan");
+            set => SetCharacteristic("OnOffScan", value);
+        }
+
+        public double? LowLimit
+        {
+            get => GetCharacteristic<double?>("LowLimit");
+            set => SetCharacteristic("LowLimit", value);
+        }
+
+        public double? HighLimit
+        {
+            get => GetCharacteristic<double?>("HighLimit");
+            set => SetCharacteristic("HighLimit", value);
+        }
+
+        public string Units
+        {
+            get => GetCharacteristic<string>("Units");
+            set => SetCharacteristic("Units", value);
+        }
+
+        public double? InitialValue
+        {
+            get => GetCharacteristic<double?>("InitialValue");
+            set => SetCharacteristic("InitialValue", value);
+        }
+
+        // Helper metode za rad sa dictionary
+        private T GetCharacteristic<T>(string key)
+        {
+            return _characteristics.TryGetValue(key, out var value) ? (T)value : default(T);
+        }
+        private void SetCharacteristic(string key, object value)
+        {
+            if (value == null)
+            {
+                _characteristics.Remove(key);
+            }
+            else
+            {
+                _characteristics[key] = value;
+            }
+        }
 
         // Dodaj ovo svojstvo u Tag klasu
+        [NotMapped]
         public double? CurrentValue { get; set; }
 
-        // Navigation property za alarme
-        public virtual ICollection<Alarm> Alarms { get; set; }
+         public ICollection<Alarm> Alarms { get; set; }
 
         public Tag()
         {

@@ -222,6 +222,8 @@ namespace DataConcentrator
         }
         private void ProcessTagValue(Tag tag, double currentValue)
         {
+            tag.CurrentValue = currentValue;
+
             var timestamp = DateTime.Now;
             var scanTime = tag.ScanTime ?? 1000;
 
@@ -299,19 +301,19 @@ namespace DataConcentrator
         private void WriteToPLCSimulator(Tag tag, double value)
         {
             // Ovde možeš dodati mapiranje ili direktno pisanje
-            if (plcSimulator == null) return; // Add this check
-            string address = "ADR"+tag.IOAddress.ToString("D3");
+            if (plcSimulator == null) return;
+
+            var address = GetTagAddress(tag); // Koristi postojeću helper metodu
+
             switch (tag.Type)
             {
                 case TagType.AO:
                     // Za analog output - pošalji u PLC simulator
-                    plcSimulator.SetAnalogValue(address, value);
+                    plcSimulator.SetAnalogValue(address, value); 
                     break;
                     
                 case TagType.DO:
-                    // Za digital output - pošalji u PLC simulator
-                    if (value != 0 && value != 1)
-                        throw new InvalidOperationException("Digital output value must be 0 or 1.");
+                    // Za digital output - pošalji u PLC simulator  
                     plcSimulator.SetDigitalValue(address, value);
                     break;
             }
