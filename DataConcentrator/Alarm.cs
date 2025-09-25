@@ -3,10 +3,145 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace DataConcentrator
 {
-    internal class Alarm
+    public enum AlarmTrigger
     {
+        Above,
+        Below
+    }
+
+    [Table("Alarms")]
+    public class Alarm
+    {
+        public const int MAX_ID_LENGTH = 50;
+        public const int MAX_MESSAGE_LENGTH = 1000;
+
+        [Key]
+        [StringLength(MAX_ID_LENGTH)]
+        public string Id { get; set; }
+
+        [Required]
+        [StringLength(MAX_ID_LENGTH)]
+        [ForeignKey("Tag")]
+        public string TagId { get; set; }
+
+        [Required]
+        public AlarmTrigger Trigger { get; set; }
+
+        [Required]
+        public double Threshold { get; set; }
+
+        [Required]
+        [StringLength(MAX_MESSAGE_LENGTH)]
+        public string Message { get; set; }
+
+        public bool IsActive { get; set; }
+        public bool IsAcknowledged { get; set; }
+        public DateTime? ActivationTime { get; set; }
+
+        // Navigation property
+        public virtual Tag Tag { get; set; }
+
+        public Alarm()
+        {
+        }
+
+        public Alarm(string id, AlarmTrigger trigger, double threshold, string message)
+        {
+            ValidateAndSetId(id);
+            ValidateAndSetTrigger(trigger);
+            ValidateAndSetThreshold(threshold);
+            ValidateAndSetMessage(message);
+        }
+
+        // Validacione metode
+        public void ValidateAndSetId(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                throw new InvalidOperationException("Id cannot be null or empty.");
+            if (value.Length > MAX_ID_LENGTH)
+                throw new InvalidOperationException($"Id cannot exceed {MAX_ID_LENGTH} characters.");
+            Id = value;
+        }
+
+        public void ValidateAndSetTrigger(AlarmTrigger value)
+        {
+            if (!Enum.IsDefined(typeof(AlarmTrigger), value))
+                throw new InvalidOperationException($"Invalid AlarmTrigger value: {value}");
+            Trigger = value;
+        }
+
+        public void ValidateAndSetThreshold(double value)
+        {
+            if (double.IsNaN(value))
+                throw new ArgumentException("Threshold cannot be NaN");
+            if (double.IsInfinity(value))
+                throw new ArgumentException("Threshold cannot be Infinity");
+            Threshold = value;
+        }
+
+        public void ValidateAndSetMessage(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                throw new InvalidOperationException("Message cannot be null or empty.");
+            if (value.Length > MAX_MESSAGE_LENGTH)
+                throw new InvalidOperationException($"Message cannot exceed {MAX_MESSAGE_LENGTH} characters.");
+            Message = value;
+        }
+
+        // Business logika
+        public bool CheckTriggerCondition(double currentValue)
+        {
+            return Trigger == AlarmTrigger.Above ? currentValue > Threshold : currentValue < Threshold;
+        }
+
+        public bool TryActivate(double currentValue)
+        {
+            bool shouldBeActive = CheckTriggerCondition(currentValue);
+
+            if (!IsActive && shouldBeActive)
+            {
+                IsActive = true;
+                IsAcknowledged = false;
+                ActivationTime = DateTime.Now;
+                return true; // Alarm je upravo aktiviran
+            }
+
+            return false;
+        }
+
+        public bool Acknowledge()
+        {
+            if (IsActive && !IsAcknowledged)
+            {
+                IsAcknowledged = true;
+                return true;
+            }
+            return false;
+        }
+
+        public bool Reset(double currentValue)
+        {
+            if (IsActive && IsAcknowledged && !CheckTriggerCondition(currentValue))
+            {
+                IsActive = false;
+                ActivationTime = null;
+                return true;
+            }
+            return false;
+        }
+
+        // Validacija celokupnog objekta
+        public void ValidateConfiguration()
+        {
+            ValidateAndSetId(Id);
+            ValidateAndSetTrigger(Trigger);
+            ValidateAndSetThreshold(Threshold);
+            ValidateAndSetMessage(Message);
+        }
     }
 }

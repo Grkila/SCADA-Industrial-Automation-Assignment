@@ -104,6 +104,17 @@ namespace PLCSimulator
                 return -1;
             }
         }
+        public double GetDigitalValue(string address)
+        {
+            if (addressValues.ContainsKey(address))
+            {
+                return addressValues[address];
+            }
+            else
+            {
+                return -1;
+            }
+        }
 
         public void SetAnalogValue(string address, double value)
         {
