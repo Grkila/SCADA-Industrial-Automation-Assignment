@@ -1,7 +1,6 @@
 ﻿using System.Collections.ObjectModel;
-using ScadaGUI.Models;
 using ScadaGUI.Services;
-
+using DataConcentrator;
 namespace ScadaGUI.ViewModels
 {
     public class AlarmHistoryViewModel : BaseViewModel
@@ -9,7 +8,7 @@ namespace ScadaGUI.ViewModels
         // Ova lista  čuva kompletnu istoriju
         public ObservableCollection<ActiveAlarm> AlarmHistory { get; set; }
 
-        public AlarmHistoryViewModel(MockDataConcentratorService concentrator)
+        public AlarmHistoryViewModel(DataCollector concentrator)
         {
             
             AlarmHistory = new ObservableCollection<ActiveAlarm>();

@@ -54,7 +54,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ActivatedAlarm.cs" />
+    <Compile Include="ActiveAlarm.cs" />
     <Compile Include="Alarm.cs" />
     <Compile Include="ContextClass.cs" />
     <Compile Include="DataCollector.cs" />

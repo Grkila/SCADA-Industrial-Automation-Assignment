@@ -1,14 +1,13 @@
 ﻿using System.IO;
 using System.Linq;
-using ScadaGUI.Models;
-
+using DataConcentrator;
 namespace ScadaGUI.Services
 {
     public class ReportService
     {
-        private readonly MockDatabaseService _db;
+        private readonly ContextClass _db;
 
-        public ReportService(MockDatabaseService db)
+        public ReportService(ContextClass db)
         {
             _db = db;
         }

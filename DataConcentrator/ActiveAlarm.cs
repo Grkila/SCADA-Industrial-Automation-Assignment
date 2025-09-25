@@ -1,11 +1,12 @@
 ﻿using System;
+using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace DataConcentrator
 {
-    [Table("ActivatedAlarms")]
-    public class ActivatedAlarm
+    [Table("ActiveAlarms")]
+    public class ActiveAlarm 
     {
         [Key]
         public int Id { get; set; }  // Add primary key
@@ -24,28 +25,28 @@ namespace DataConcentrator
         public string Message { get; set; }
 
         [Required]
-        public DateTime AlarmTime { get; set; }
+        public DateTime Time { get; set; }
 
         // Navigation property
         public virtual Alarm Alarm { get; set; }
 
-        public ActivatedAlarm()
+        public ActiveAlarm()
         {
         }
 
-        public ActivatedAlarm(string alarmId, string tagName, string message, DateTime alarmTime)
+        public ActiveAlarm(string alarmId, string tagName, string message, DateTime alarmTime)
         {
             AlarmId = alarmId;
             TagName = tagName;
             Message = message;
-            AlarmTime = alarmTime;
+            Time = alarmTime;
         }
-        public ActivatedAlarm(Alarm alarm, string tagName)
+        public ActiveAlarm(Alarm alarm, string tagName)
         {
             AlarmId = alarm.Id;
             TagName = tagName;       
             Message = alarm.Message;
-            AlarmTime = DateTime.Now;
+            Time = DateTime.Now;
         }
     }
 }

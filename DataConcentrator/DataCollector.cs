@@ -1,50 +1,292 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
+using System.Timers;
 using System.Data.Entity;
+using PLCSimulator;
+
 namespace DataConcentrator
 {
-    
-    public class DataCollector
+    public class DataCollector : IDisposable
     {
-        
+        // Fields - Note: _db is now ContextClass, not DataCollector
+        private readonly ContextClass _db;
+        private readonly PLCSimulatorManager _plc;
+        private readonly List<ActiveAlarm> _activeAlarms = new List<ActiveAlarm>();
+        private readonly Timer _timer;
+
+        // Events matching MockDataConcentratorService
+        public event EventHandler ValuesUpdated;
+        public event Action<ActiveAlarm> AlarmTriggered;
+
+        // Additional fields for enhanced functionality
         private volatile bool isRunning = false;
         private static readonly object locker = new object();
-        private PLCSimulator.PLCSimulatorManager plcSimulator;
-
         private List<Tag> tags;
-        
-        private Dictionary<string, Timer> tagTimers;
-        
-        public DataCollector()
-        {
-            //tags = new List<Tag>();
-            tagTimers = new Dictionary<string, Timer>();
-            LoadConfiguration();
+        private Dictionary<string, System.Threading.Timer> tagTimers;
 
+        // Constructor - Fixed to accept ContextClass instead of DataCollector
+        public DataCollector(ContextClass db, PLCSimulatorManager plc)
+        {
+            _db = db ?? throw new ArgumentNullException(nameof(db));
+            _plc = plc ?? throw new ArgumentNullException(nameof(plc));
+
+            // Initialize collections
+            _activeAlarms = new List<ActiveAlarm>();
+            tagTimers = new Dictionary<string, System.Threading.Timer>();
+
+            _timer = new Timer(1);
+            _timer.Elapsed += (s, e) => ReadValuesFromPLC();
+
+            // Load configuration and start
+            LoadConfiguration();
+            _timer.Start();
+            isRunning = true;
+
+            Console.WriteLine("DataCollector initialized and started");
         }
-        private void LoadConfiguration()
+
+        // Main method matching MockDataConcentratorService functionality
+        private void ReadValuesFromPLC()
+        {
+            if (!isRunning) return;
+
+            try
+            {
+                lock (locker)
+                {
+                    foreach (var tag in GetTags())
+                    {
+                        // The rule is still the same: must be an input tag with scanning enabled
+                        if (tag.IsScanning != false && tag.IsInputTag())
+                        {
+                            // *** NEW LOGIC IS HERE ***
+                            // Get the required scan time. Default to 1000ms if not set.
+                            double requiredScanTime = tag.ScanTime ?? 1000;
+
+                            // Check if enough time has passed since the last scan
+                            if ((DateTime.Now - tag.LastScanned).TotalMilliseconds >= requiredScanTime)
+                            {
+                                try
+                                {
+                                    // It's time to scan this tag!
+                                    double currentValue = ReadTagValue(tag);
+                                    tag.CurrentValue = currentValue;
+
+                                    // CRUCIAL: Update the last scanned time to now
+                                    tag.LastScanned = DateTime.Now;
+
+                                    SaveCurrentValueToDatabase(tag, currentValue);
+                                    CheckAlarmsForTag(tag);
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.WriteLine($"Error reading tag {tag.Name}: {ex.Message}");
+                                }
+                            }
+                        }
+                    }
+                }
+                ValuesUpdated?.Invoke(this, EventArgs.Empty);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in ReadValuesFromPLC: {ex.Message}");
+            }
+        }
+
+        // Alarm checking logic matching MockDataConcentratorService
+        private void CheckAlarmsForTag(Tag tag)
+        {
+            if (!tag.CurrentValue.HasValue) return;
+
+            bool isAlarmActiveForTag = false;
+
+            foreach (var alarm in GetAlarms().Where(a => a.TagName == tag.Name))
+            {
+                bool alarmTriggered = false;
+
+                if (alarm.Type == AlarmType.Above && tag.CurrentValue.Value > alarm.Limit)
+                {
+                    alarmTriggered = true;
+                }
+                else if (alarm.Type == AlarmType.Below && tag.CurrentValue.Value < alarm.Limit)
+                {
+                    alarmTriggered = true;
+                }
+
+                if (alarmTriggered)
+                {
+                    isAlarmActiveForTag = true;
+
+                    // Check if this alarm is already active
+                    if (!_activeAlarms.Any(a => a.TagName == tag.Name && a.Message == alarm.Message))
+                    {
+                        var newActiveAlarm = new ActiveAlarm
+                        {
+                            Time = DateTime.Now,
+                            TagName = tag.Name,
+                            Message = alarm.Message
+                        };
+
+                        _activeAlarms.Add(newActiveAlarm);
+
+                        // Save to database
+                        SaveActivatedAlarm(alarm, tag.Name, newActiveAlarm.Time);
+
+                        // Trigger event
+                        AlarmTriggered?.Invoke(newActiveAlarm);
+
+                        Console.WriteLine($"ALARM TRIGGERED: {tag.Name} - {alarm.Message}");
+                    }
+                }
+            }
+
+            // Remove alarms that are no longer active for this tag
+            if (!isAlarmActiveForTag)
+            {
+                var alarmsToRemove = _activeAlarms.Where(a => a.TagName == tag.Name).ToList();
+                foreach (var alarm in alarmsToRemove)
+                {
+                    _activeAlarms.Remove(alarm);
+                    Console.WriteLine($"ALARM CLEARED: {tag.Name} - {alarm.Message}");
+                }
+            }
+        }
+
+        // Public methods matching MockDataConcentratorService interface
+        public IEnumerable<Tag> GetTags()
+        {
+            return tags ?? new List<Tag>();
+        }
+
+        public IEnumerable<ActiveAlarm> GetActiveAlarms()
+        {
+            lock (locker)
+            {
+                return _activeAlarms.ToList();
+            }
+        }
+
+        public void Stop()
+        {
+            if (!isRunning) return;
+
+            isRunning = false;
+            _timer?.Stop();
+            _timer?.Dispose();
+
+            StopAllTimers();
+            _plc?.Abort();
+
+            Console.WriteLine("DataCollector stopped");
+        }
+
+        // Additional public methods for enhanced functionality
+        public void SetTagScanning(string tagName, bool enable)
+        {
+            lock (locker)
+            {
+                try
+                {
+                    // Update in database
+                    var tag = _db.Tags.FirstOrDefault(t => t.Name == tagName);
+                    if (tag != null)
+                    {
+                        tag.IsScanning = enable;
+                        _db.SaveChanges(); // Persists the change
+
+                        // Update in the DataCollector's active memory
+                        var memoryTag = tags?.FirstOrDefault(t => t.Name == tagName);
+                        if (memoryTag != null)
+                        {
+                            memoryTag.IsScanning = enable;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error updating scan state for {tagName}: {ex.Message}");
+                    throw;
+                }
+            }
+        }
+
+        public void WriteTagValue(string tagName, double value)
+        {
+            lock (locker)
+            {
+                var tag = tags?.FirstOrDefault(t => t.Name == tagName);
+                if (tag != null && tag.IsOutputTag())
+                {
+                    try
+                    {
+                        // Write value to tag
+                        tag.CurrentValue = value;
+
+                        // Send to PLC simulator
+                        WriteToPLCSimulator(tag, value);
+
+                        // Save to database
+                        SaveCurrentValueToDatabase(tag, value);
+
+                        Console.WriteLine($"Successfully wrote {value} to tag {tagName}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error writing to tag {tagName}: {ex.Message}");
+                        throw;
+                    }
+                }
+                else
+                {
+                    throw new InvalidOperationException($"Tag {tagName} not found or is not an output tag");
+                }
+            }
+        }
+
+        public double? GetTagValue(string tagName)
+        {
+            lock (locker)
+            {
+                var tag = tags?.FirstOrDefault(t => t.Name == tagName);
+                return tag?.CurrentValue;
+            }
+        }
+
+        // Configuration management methods
+        public void SaveConfiguration()
         {
             try
             {
-                using (var context = new ContextClass())
+                // Save all tags to database
+                _db.SaveChanges();
+                Console.WriteLine("Configuration saved to database");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error saving configuration: {ex.Message}");
+                throw;
+            }
+        }
+
+        public void LoadConfiguration()
+        {
+            try
+            {
+                lock (locker)
                 {
-                    // Učitavamo tagove i njihove vezane alarme odjednom (Eager Loading)
-                    tags = context.Tags.Include(t => t.Alarms).ToList();
-                    Console.WriteLine($"[INFO] Successfully loaded {tags.Count} tags from the database.");
+                    // Use GetTags method from ContextClass
+                    tags = _db.GetTags().ToList();
+                    Console.WriteLine($"Successfully loaded {tags.Count} tags from database");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[ERROR] Failed to load configuration from database: {ex.Message}");
-                // Inicijalizujemo praznu listu ako učitavanje ne uspe
+                Console.WriteLine($"Error loading configuration: {ex.Message}");
                 tags = new List<Tag>();
             }
         }
-
 
         public void AddTag(Tag tag)
         {
@@ -55,138 +297,58 @@ namespace DataConcentrator
             {
                 try
                 {
-                    // Save to database first
-                    using (var context = new ContextClass())
-                    {
-                        // Check if tag already exists
-                        if (context.Tags.Any(t => t.Id == tag.Id))
-                        {
-                            throw new InvalidOperationException($"Tag with ID '{tag.Id}' already exists in database.");
-                        }
+                    // Use AddTag method from ContextClass
+                    _db.AddTag(tag);
+                    _db.SaveChanges();
 
-                        context.Tags.Add(tag);
-                        context.SaveChanges();
-                        Console.WriteLine($"Tag {tag.Id} saved to database");
-                    }
-
-                    // Then add to in-memory collection
+                    // Add to memory collection
                     tags.Add(tag);
-
-                    // Start timer if needed
-                    if (isRunning && ShouldScanTag(tag))
-                    {
-                        StartTimerForTag(tag);
-                    }
-
-                    Console.WriteLine($"Added tag {tag.Id} to DataCollector");
+                    Console.WriteLine($"Added tag {tag.Name} to DataCollector");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error adding tag {tag.Id}: {ex.Message}");
+                    Console.WriteLine($"Error adding tag {tag.Name}: {ex.Message}");
                     throw;
                 }
             }
         }
 
-        public void RemoveTag(string tagId)
+        public void RemoveTag(string tagName)
         {
-            if (string.IsNullOrWhiteSpace(tagId))
-                throw new ArgumentException("Invalid tag ID", nameof(tagId));
+            if (string.IsNullOrWhiteSpace(tagName))
+                throw new ArgumentException("Invalid tag name", nameof(tagName));
 
             lock (locker)
             {
                 try
                 {
-                    // Remove from database first
-                    using (var context = new ContextClass())
-                    {
-                        var dbTag = context.Tags.FirstOrDefault(t => t.Id == tagId);
-                        if (dbTag != null)
-                        {
-                            context.Tags.Remove(dbTag);
-                            context.SaveChanges();
-                            Console.WriteLine($"Tag {tagId} removed from database");
-                        }
-                    }
-
-                    // Remove from in-memory collection
-                    var tagToRemove = tags.FirstOrDefault(t => t.Id == tagId);
+                    // Find and remove from database
+                    var tagToRemove = _db.Tags.FirstOrDefault(t => t.Name == tagName);
                     if (tagToRemove != null)
                     {
-                        tags.Remove(tagToRemove);
-                        StopTimerForTag(tagId);
-                        Console.WriteLine($"Removed tag {tagId} from DataCollector");
+                        _db.DeleteTag(tagToRemove);
+                        _db.SaveChanges();
+
+                        // Remove from memory collection
+                        var memoryTag = tags?.FirstOrDefault(t => t.Name == tagName);
+                        if (memoryTag != null)
+                        {
+                            tags.Remove(memoryTag);
+                        }
+
+                        Console.WriteLine($"Removed tag {tagName} from DataCollector");
                     }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error removing tag {tagId}: {ex.Message}");
+                    Console.WriteLine($"Error removing tag {tagName}: {ex.Message}");
                     throw;
                 }
             }
         }
 
-        // Also need methods for updating existing tags
-        public void UpdateTag(Tag updatedTag)
+        public void AddAlarm(Alarm alarm)
         {
-            if (updatedTag == null)
-                throw new ArgumentNullException(nameof(updatedTag));
-
-            lock (locker)
-            {
-                try
-                {
-                    // Update in database
-                    using (var context = new ContextClass())
-                    {
-                        var dbTag = context.Tags.FirstOrDefault(t => t.Id == updatedTag.Id);
-                        if (dbTag == null)
-                        {
-                            throw new InvalidOperationException($"Tag {updatedTag.Id} not found in database");
-                        }
-
-                        // Update properties
-                        dbTag.Description = updatedTag.Description;
-                        dbTag.IOAddress = updatedTag.IOAddress;
-                        dbTag.CharacteristicsJson = updatedTag.CharacteristicsJson;
-                        
-                        context.SaveChanges();
-                        Console.WriteLine($"Tag {updatedTag.Id} updated in database");
-                    }
-
-                    // Update in-memory collection
-                    var existingTag = tags.FirstOrDefault(t => t.Id == updatedTag.Id);
-                    if (existingTag != null)
-                    {
-                        // Stop current timer
-                        StopTimerForTag(updatedTag.Id);
-                        
-                        // Replace tag
-                        tags.Remove(existingTag);
-                        tags.Add(updatedTag);
-                        
-                        // Restart timer if needed
-                        if (isRunning && ShouldScanTag(updatedTag))
-                        {
-                            StartTimerForTag(updatedTag);
-                        }
-                    }
-
-                    Console.WriteLine($"Tag {updatedTag.Id} updated in DataCollector");
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error updating tag {updatedTag.Id}: {ex.Message}");
-                    throw;
-                }
-            }
-        }
-
-        // Method for adding alarms to existing tags
-        public void AddAlarmToTag(string tagId, Alarm alarm)
-        {
-            if (string.IsNullOrWhiteSpace(tagId))
-                throw new ArgumentException("Invalid tag ID", nameof(tagId));
             if (alarm == null)
                 throw new ArgumentNullException(nameof(alarm));
 
@@ -194,249 +356,126 @@ namespace DataConcentrator
             {
                 try
                 {
-                    using (var context = new ContextClass())
-                    {
-                        var dbTag = context.Tags.Include(t => t.Alarms)
-                            .FirstOrDefault(t => t.Id == tagId);
-                        
-                        if (dbTag == null)
-                        {
-                            throw new InvalidOperationException($"Tag {tagId} not found");
-                        }
-
-                        if (!dbTag.IsAnalogInputTag())
-                        {
-                            throw new InvalidOperationException("Alarms can only be added to AI tags");
-                        }
-
-                        alarm.TagId = tagId;
-                        context.Alarms.Add(alarm);
-                        context.SaveChanges();
-                        
-                        Console.WriteLine($"Alarm {alarm.Id} added to tag {tagId} in database");
-                    }
-
-                    // Update in-memory tag
-                    var memoryTag = tags.FirstOrDefault(t => t.Id == tagId);
-                    if (memoryTag != null)
-                    {
-                        memoryTag.Alarms.Add(alarm);
-                        Console.WriteLine($"Alarm {alarm.Id} added to tag {tagId} in memory");
-                    }
+                    _db.AddAlarm(alarm);
+                    _db.SaveChanges();
+                    Console.WriteLine($"Added alarm for tag {alarm.TagName}");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error adding alarm to tag {tagId}: {ex.Message}");
+                    Console.WriteLine($"Error adding alarm: {ex.Message}");
                     throw;
                 }
             }
         }
 
-        // Method for removing alarms from tags
-        public void RemoveAlarmFromTag(string tagId, string alarmId)
+        public void RemoveAlarm(Alarm alarm)
         {
-            if (string.IsNullOrWhiteSpace(tagId))
-                throw new ArgumentException("Invalid tag ID", nameof(tagId));
-            if (string.IsNullOrWhiteSpace(alarmId))
-                throw new ArgumentException("Invalid alarm ID", nameof(alarmId));
+            if (alarm == null)
+                throw new ArgumentNullException(nameof(alarm));
 
             lock (locker)
             {
                 try
                 {
-                    // Remove from database
-                    using (var context = new ContextClass())
-                    {
-                        var alarm = context.Alarms.FirstOrDefault(a => a.Id == alarmId && a.TagId == tagId);
-                        if (alarm != null)
-                        {
-                            context.Alarms.Remove(alarm);
-                            context.SaveChanges();
-                            Console.WriteLine($"Alarm {alarmId} removed from database");
-                        }
-                    }
-
-                    // Remove from in-memory tag
-                    var tag = tags.FirstOrDefault(t => t.Id == tagId);
-                    if (tag != null)
-                    {
-                        var alarmToRemove = tag.Alarms.FirstOrDefault(a => a.Id == alarmId);
-                        if (alarmToRemove != null)
-                        {
-                            tag.Alarms.Remove(alarmToRemove);
-                            Console.WriteLine($"Alarm {alarmId} removed from tag {tagId} in memory");
-                        }
-                    }
+                    _db.DeleteAlarm(alarm);
+                    _db.SaveChanges();
+                    Console.WriteLine($"Removed alarm for tag {alarm.TagName}");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error removing alarm {alarmId} from tag {tagId}: {ex.Message}");
+                    Console.WriteLine($"Error removing alarm: {ex.Message}");
                     throw;
                 }
             }
         }
 
-        private void StopTimerForTag(string tagId)
-        {
-            if (tagTimers.TryGetValue(tagId, out Timer timer))
-            {
-                timer.Dispose();
-                tagTimers.Remove(tagId);
-                Console.WriteLine($" Stopped timer for tag {tagId}");
-            }
-        }
-
-        // Updated SetTagScanning method to persist configuration changes
-        public void SetTagScanning(string tagId, bool enable)
-        {
-            lock (locker)
-            {
-                try
-                {
-                    // Update in database first
-                    using (var context = new ContextClass())
-                    {
-                        var dbTag = context.Tags.FirstOrDefault(t => t.Id == tagId);
-                        if (dbTag != null)
-                        {
-                            dbTag.OnOffScan = enable;
-                            context.SaveChanges();
-                            Console.WriteLine($"Tag {tagId} scan state updated in database: {enable}");
-                        }
-                    }
-
-                    // Update in memory
-                    var tag = tags.FirstOrDefault(t => t.Id == tagId);
-                    if (tag != null && tag.IsInputTag())
-                    {
-                        tag.ValidateAndSetOnOffScan(enable);
-
-                        if (enable && isRunning)
-                        {
-                            StartTimerForTag(tag);
-                        }
-                        else
-                        {
-                            StopTimerForTag(tagId);
-                        }
-
-                        Console.WriteLine($"Tag {tagId} scanning: {(enable ? "ENABLED" : "DISABLED")}");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error updating scan state for {tagId}: {ex.Message}");
-                    throw;
-                }
-            }
-        }
-        public void Start(PLCSimulator.PLCSimulatorManager plcSimulator)
-        {
-            if (isRunning)
-                return;
-
-            this.plcSimulator = plcSimulator ?? throw new ArgumentNullException(nameof(plcSimulator));
-            plcSimulator.StartPLCSimulator();
-
-            isRunning = true;
-
-            // Inicijalizuj output tagove sa initial values
-            InitializeOutputTags();
-            
-            StartAllTagTimers();
-
-            Console.WriteLine("DataCollector started with individual timers");
-        }
+        // Private helper methods
         private double ReadTagValue(Tag tag)
         {
             switch (tag.Type)
             {
                 case TagType.AI:
-                    return plcSimulator.GetAnalogValue(GetTagAddress(tag));
+                    return _plc.GetAnalogValue(GetTagAddress(tag));
                 case TagType.DI:
-                    return plcSimulator.GetDigitalValue(GetTagAddress(tag));
+                    return _plc.GetDigitalValue(GetTagAddress(tag));
                 default:
-                   throw new InvalidOperationException($"Cannot read value for tag type {tag.Type}");
+                    throw new InvalidOperationException($"Cannot read value for tag type {tag.Type}");
             }
         }
+
+        private void WriteToPLCSimulator(Tag tag, double value)
+        {
+            if (_plc == null) return;
+
+            var address = GetTagAddress(tag);
+
+            switch (tag.Type)
+            {
+                case TagType.AO:
+                    _plc.SetAnalogValue(address, value);
+                    break;
+                case TagType.DO:
+                    _plc.SetDigitalValue(address, value);
+                    break;
+                default:
+                    throw new InvalidOperationException($"Cannot write to tag type {tag.Type}");
+            }
+        }
+
         private string GetTagAddress(Tag tag)
         {
-            // Now IOAddress is already a string, so we can use it directly
-            // or format it if needed
-            return tag.IOAddress.StartsWith("ADDR") ? tag.IOAddress : $"ADDR{tag.IOAddress}";
-        }
-        private void StartAllTagTimers()
-        {
-
-            lock (locker)
-            {
-                foreach (var tag in tags.Where(t => ShouldScanTag(t)))
-                {
-                    StartTimerForTag(tag);
-                }
-            }
-
-            Console.WriteLine($"Started {tagTimers.Count} tag timers");
-        }
-        private void StartTimerForTag(Tag tag)
-        {
-            if (tagTimers.ContainsKey(tag.Id))
-            {
-                // Timer već postoji, ne pravi duplikat
-                return;
-            }
-
-            var scanIntervalMs = (int)(tag.ScanTime ?? 1000); // Default 1000ms ako nije postavljen
-
-            var timer = new Timer(
-                callback: (state) => ScanSingleTag(tag),  // Šta da radi kad se aktivira
-                state: null,                              // Dodatni podaci (ne trebaju nam)
-                dueTime: 100,                            // Prvi put nakon 100ms (kratka pauza)
-                period: scanIntervalMs                    // Zatim svakih scanIntervalMs milisekundi
-            );
-
-            tagTimers[tag.Id] = timer;
-            Console.WriteLine($" Started timer for tag {tag.Id} - scanning every {scanIntervalMs}ms");
+            return tag.IOAddress?.StartsWith("ADDR") == true ? tag.IOAddress : $"ADDR{tag.IOAddress}";
         }
 
-        private bool ShouldScanTag(Tag tag)
+        private void SaveCurrentValueToDatabase(Tag tag, double currentValue)
         {
-            // Skeniramo samo input tagove (DI, AI) koji imaju OnOffScan = true
-            return tag.IsInputTag() && tag.OnOffScan == true;
-        }
-        private void ScanSingleTag(Tag tag)
-        {
-            // Proveri da li sistem još uvek radi i da li tag treba skenirati
-            if (!isRunning || !ShouldScanTag(tag))
-                return;
-
             try
             {
-                // Čitaj vrednost iz PLC simulatora
-                double currentValue = ReadTagValue(tag);
-
-                // Obradi vrednost (proveri alarme, ispiši, sačuvaj u bazu)
-                ProcessTagValue(tag, currentValue);
+                var dbTag = _db.Tags.FirstOrDefault(t => t.Name == tag.Name);
+                if (dbTag != null)
+                {
+                    dbTag.CurrentValue = currentValue;
+                    _db.SaveChanges();
+                }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error scanning tag {tag.Id}: {ex.Message}");
+                Console.WriteLine($"Error saving current value for {tag.Name}: {ex.Message}");
             }
         }
-        public void Stop()
+
+        private void SaveActivatedAlarm(Alarm alarm, string tagName, DateTime time)
         {
-            if (!isRunning)
-                return;
+            try
+            {
+                var activatedAlarm = new ActiveAlarm
+                {
+                    AlarmId = alarm.Id,
+                    TagName = tagName,
+                    Message = alarm.Message,
+                    Time = time
+                };
 
-            isRunning = false;
+                _db.ActivatedAlarms.Add(activatedAlarm);
+                _db.SaveChanges();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error saving activated alarm: {ex.Message}");
+            }
+        }
 
-            // Zaustavi sve timer-e
-            StopAllTimers();
-
-            // Zaustavi PLC simulator
-            plcSimulator?.Abort();
-
-            Console.WriteLine("DataCollector stopped");
+        private IEnumerable<Alarm> GetAlarms()
+        {
+            try
+            {
+                return _db.GetAlarms();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting alarms: {ex.Message}");
+                return new List<Alarm>();
+            }
         }
 
         private void StopAllTimers()
@@ -445,160 +484,63 @@ namespace DataConcentrator
             {
                 foreach (var timer in tagTimers.Values)
                 {
-                    timer?.Dispose(); // Dispose oslobađa resurse timer-a
+                    timer?.Dispose();
                 }
                 tagTimers.Clear();
             }
-
-            Console.WriteLine($"Stopped all tag timers");
         }
-        // Updated ProcessTagValue method to persist current values
-        private void ProcessTagValue(Tag tag, double currentValue)
+
+        // Implement IDisposable pattern
+        private bool disposed = false;
+
+        public void Dispose()
         {
-            tag.CurrentValue = currentValue;
-            
-            // Save current value to database periodically
-            SaveCurrentValueToDatabase(tag, currentValue);
-
-            var timestamp = DateTime.Now;
-            var scanTime = tag.ScanTime ?? 1000;
-
-            Console.WriteLine($"[{timestamp:HH:mm:ss.fff}] {tag.Id}: {currentValue:F2} {tag.Units} (scan: {scanTime}ms)");
-
-            // Check alarms for AI tags
-            if (tag.Type == TagType.AI)
-            {
-                var triggeredAlarms = tag.CheckAlarms(currentValue);
-
-                if (triggeredAlarms.Any())
-                {
-                    Console.WriteLine($"ALARM on tag {tag.Id}:");
-
-                    foreach (var alarm in triggeredAlarms)
-                    {
-                        Console.WriteLine($"   - {alarm.Id}: {alarm.Message}");
-                        SaveActivatedAlarm(alarm, tag.Id);
-                    }
-                }
-            }
+            Dispose(true);
+            GC.SuppressFinalize(this);
         }
 
-        private void SaveActivatedAlarm(Alarm alarm, string tagId)
+        protected virtual void Dispose(bool disposing)
         {
-            try
+            if (!disposed)
             {
-                using (var context = new ContextClass())
+                if (disposing)
                 {
-                    var activatedAlarm = new ActivatedAlarm(alarm, tagId);
-                    context.ActivatedAlarms.Add(activatedAlarm);
-                    context.SaveChanges();
-
-                    Console.WriteLine($"Alarm {alarm.Id} saved to database");
+                    Stop();
+                    _db?.Dispose();
                 }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($" Error saving alarm: {ex.Message}");
+                disposed = true;
             }
         }
 
-        // Metoda za pisanje u output tagove
-        public void WriteTagValue(string tagId, double value)
+        public void OnTagAdded(Tag tag)
         {
             lock (locker)
             {
-                var tag = tags.FirstOrDefault(t => t.Id == tagId);
-                if (tag != null && tag.IsOutputTag())
+                if (!tags.Any(t => t.Name == tag.Name))
                 {
-                    try
-                    {
-                        // Upiši vrednost u tag
-                        tag.WriteValue(value);
-                        
-                        // Pošalji vrednost u PLC simulator
-                        WriteToPLCSimulator(tag, value);
-                        
-                        Console.WriteLine($" Successfully wrote {value} to tag {tagId}");
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($" Error writing to tag {tagId}: {ex.Message}");
-                    }
-                }
-                else
-                {
-                    Console.WriteLine($"Tag {tagId} not found or is not an output tag");
+                    tags.Add(tag);
+                    Console.WriteLine($"DataCollector dynamically added tag: {tag.Name}");
                 }
             }
         }
 
-        private void WriteToPLCSimulator(Tag tag, double value)
-        {
-            // Ovde možeš dodati mapiranje ili direktno pisanje
-            if (plcSimulator == null) return;
-
-            var address = GetTagAddress(tag); // Koristi postojeću helper metodu
-
-            switch (tag.Type)
-            {
-                case TagType.AO:
-                    // Za analog output - pošalji u PLC simulator
-                    plcSimulator.SetAnalogValue(address, value); 
-                    break;
-                    
-                case TagType.DO:
-                    // Za digital output - pošalji u PLC simulator  
-                    plcSimulator.SetDigitalValue(address, value);
-                    break;
-            }
-        }
-
-        // Metoda za čitanje trenutne vrednosti output tag-a
-        public double? GetTagValue(string tagId)
+        // Add this new method to dynamically remove a tag from the scanning list
+        public void OnTagRemoved(Tag tag)
         {
             lock (locker)
             {
-                var tag = tags.FirstOrDefault(t => t.Id == tagId);
-                return tag?.GetCurrentValue();
-            }
-        }
-
-        // Metoda za postavljanje initial values na početku
-        public void InitializeOutputTags()
-        {
-            lock (locker)
-            {
-                foreach (var tag in tags.Where(t => t.IsOutputTag()))
+                var tagToRemove = tags.FirstOrDefault(t => t.Name == tag.Name);
+                if (tagToRemove != null)
                 {
-                    if (tag.InitialValue.HasValue)
-                    {
-                        WriteTagValue(tag.Id, tag.InitialValue.Value);
-                        Console.WriteLine($"🔧 Initialized tag {tag.Id} with value {tag.InitialValue.Value}");
-                    }
+                    tags.Remove(tagToRemove);
+                    Console.WriteLine($"DataCollector dynamically removed tag: {tag.Name}");
                 }
             }
         }
 
-        // Method for persisting current values
-        private void SaveCurrentValueToDatabase(Tag tag, double currentValue)
+        ~DataCollector()
         {
-            try
-            {
-                using (var context = new ContextClass())
-                {
-                    var dbTag = context.Tags.FirstOrDefault(t => t.Id == tag.Id);
-                    if (dbTag != null)
-                    {
-                        dbTag.CurrentValue = currentValue;
-                        context.SaveChanges();
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error saving current value for {tag.Id}: {ex.Message}");
-            }
+            Dispose(false);
         }
-
     }
 }

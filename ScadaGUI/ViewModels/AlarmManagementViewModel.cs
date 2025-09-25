@@ -1,14 +1,16 @@
-﻿using System.Collections.ObjectModel;
+﻿using DataConcentrator;
+using DataConcentrator;
+using ScadaGUI.Services;
+using System;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows.Input;
-using ScadaGUI.Models;
-using ScadaGUI.Services;
 
 namespace ScadaGUI.ViewModels
 {
     public class AlarmManagementViewModel : BaseViewModel
     {
-        private readonly MockDatabaseService _db;
+        private readonly ContextClass _db;
         private Alarm _newAlarm = new Alarm();
         private Alarm _selectedAlarm;
 
@@ -38,7 +40,7 @@ namespace ScadaGUI.ViewModels
             set { _newAlarm = value; OnPropertyChanged(); }
         }
 
-        public AlarmManagementViewModel(MockDatabaseService db)
+        public AlarmManagementViewModel(ContextClass db)
         {
             _db = db;
             Alarms = new ObservableCollection<Alarm>(_db.GetAlarms());
@@ -54,20 +56,28 @@ namespace ScadaGUI.ViewModels
 
         private bool CanAddAlarm()
         {
-            return !string.IsNullOrEmpty(NewAlarm.TagName) && _selectedAlarmType.HasValue;
+            return !string.IsNullOrEmpty(NewAlarm.TagName) &&
+                   _selectedAlarmType.HasValue &&
+                   !string.IsNullOrWhiteSpace(NewAlarm.Message); // <-- Add this check
         }
-
         private void AddAlarm()
         {
             // Preuzimamo izabranu vrednost iz ComboBox-a
             NewAlarm.Type = _selectedAlarmType.Value;
 
+            // *** THIS IS THE FIX ***
+            // Generate the unique ID for the new alarm right here.
+            NewAlarm.Id = Guid.NewGuid().ToString();
+
+            // Now, send the complete and valid object to the database context.
             _db.AddAlarm(NewAlarm);
+
+            // Add the EXACT SAME object (which now has an Id) to the UI's list.
             Alarms.Add(NewAlarm);
 
             // Resetujemo formu
             NewAlarm = new Alarm();
-            SelectedAlarmType = null; // Resetujemo ComboBox na "ništa selektovano"
+            SelectedAlarmType = null;
         }
 
         private void DeleteAlarm()
@@ -76,6 +86,24 @@ namespace ScadaGUI.ViewModels
             {
                 _db.DeleteAlarm(SelectedAlarm);
                 Alarms.Remove(SelectedAlarm);
+            }
+        }
+        public void HandleTagAdded(Tag tag)
+        {
+            // We only care about Analog Input tags for alarms
+            if (tag.Type == TagType.AI && !AvailableAiTags.Contains(tag.Name))
+            {
+                App.Current.Dispatcher.Invoke(() => AvailableAiTags.Add(tag.Name));
+            }
+        }
+
+        // Add this new method to handle the TagRemoved event
+        public void HandleTagRemoved(Tag tag)
+        {
+            // We only care about Analog Input tags for alarms
+            if (tag.Type == TagType.AI && AvailableAiTags.Contains(tag.Name))
+            {
+                App.Current.Dispatcher.Invoke(() => AvailableAiTags.Remove(tag.Name));
             }
         }
     }
