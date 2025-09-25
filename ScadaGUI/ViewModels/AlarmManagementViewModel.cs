@@ -1,14 +1,15 @@
 ﻿using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows.Input;
-using ScadaGUI.Models;
+using DataConcentrator;
+using DataConcentrator;
 using ScadaGUI.Services;
 
 namespace ScadaGUI.ViewModels
 {
     public class AlarmManagementViewModel : BaseViewModel
     {
-        private readonly MockDatabaseService _db;
+        private readonly ContextClass _db;
         private Alarm _newAlarm = new Alarm();
         private Alarm _selectedAlarm;
 
@@ -38,7 +39,7 @@ namespace ScadaGUI.ViewModels
             set { _newAlarm = value; OnPropertyChanged(); }
         }
 
-        public AlarmManagementViewModel(MockDatabaseService db)
+        public AlarmManagementViewModel(ContextClass db)
         {
             _db = db;
             Alarms = new ObservableCollection<Alarm>(_db.GetAlarms());

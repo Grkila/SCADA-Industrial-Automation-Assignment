@@ -2,14 +2,14 @@
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows.Input;
-using ScadaGUI.Models;
+using DataConcentrator;
 using ScadaGUI.Services;
-
+using DataConcentrator;
 namespace ScadaGUI.ViewModels
 {
     public class MonitorViewModel : BaseViewModel
     {
-        private readonly MockDataConcentratorService _concentrator;
+        private readonly DataCollector _concentrator;
         private Tag _selectedTag;
         private string _valueToWrite;
         private bool _isOutputTagSelected;
@@ -45,7 +45,7 @@ namespace ScadaGUI.ViewModels
             }
         }
 
-        public MonitorViewModel(MockDataConcentratorService concentrator)
+        public MonitorViewModel(DataCollector concentrator)
         {
             _concentrator = concentrator;
             MonitoredTags = new ObservableCollection<Tag>(_concentrator.GetTags());
@@ -97,6 +97,6 @@ namespace ScadaGUI.ViewModels
             });
         }
 
-        public MockDataConcentratorService GetDataConcentrator() => _concentrator;
+        public DataCollector GetDataConcentrator() => _concentrator;
     }
 }

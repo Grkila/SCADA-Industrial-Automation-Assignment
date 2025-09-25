@@ -2,14 +2,14 @@
 using System.Linq;
 using System.Windows;
 using System.Windows.Input;
-using ScadaGUI.Models;
+using DataConcentrator;
 using ScadaGUI.Services;
-
+using DataConcentrator;
 namespace ScadaGUI.ViewModels
 {
     public class TagManagementViewModel : BaseViewModel
     {
-        private readonly MockDatabaseService _db;
+        private readonly ContextClass _db;
         private Tag _newTag = new Tag();
         private Tag _selectedTag;
         private string _errorMessage;
@@ -85,7 +85,7 @@ namespace ScadaGUI.ViewModels
         public Visibility InputFieldsVisibility => (SelectedTagTypeForComboBox == TagType.AI || SelectedTagTypeForComboBox == TagType.DI) ? Visibility.Visible : Visibility.Collapsed;
         public Visibility OutputFieldsVisibility => (SelectedTagTypeForComboBox == TagType.AO || SelectedTagTypeForComboBox == TagType.DO) ? Visibility.Visible : Visibility.Collapsed;
 
-        public TagManagementViewModel(MockDatabaseService db)
+        public TagManagementViewModel(ContextClass db)
         {
             _db = db;
             Tags = new ObservableCollection<Tag>(_db.GetTags());

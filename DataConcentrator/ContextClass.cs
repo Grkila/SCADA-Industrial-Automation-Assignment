@@ -19,7 +19,7 @@ namespace DataConcentrator
         public virtual DbSet<Tag> Tags { get; set; }
         public virtual DbSet<Alarm> Alarms { get; set; }
 
-        public virtual DbSet<ActivatedAlarm> ActivatedAlarms { get; set; }
+        public virtual DbSet<ActiveAlarm> ActivatedAlarms { get; set; }
 
         protected override void OnModelCreating(DbModelBuilder modelBuilder)
         {
@@ -56,11 +56,26 @@ namespace DataConcentrator
                 newTag.Characteristics.Add(characteristic.Key, characteristic.Value);
             }
             Tags.Add(newTag);
+            SaveChanges();
         }
 
-        public void DeleteTag(Tag tag) => Tags.Remove(tag);
-        public void AddAlarm(Alarm alarm) => Alarms.Add(new Alarm { TagName = alarm.TagName, Type = alarm.Type, Limit = alarm.Limit, Message = alarm.Message });
-        public void DeleteAlarm(Alarm alarm) => Alarms.Remove(alarm);
+        public void DeleteTag(Tag tag)
+        {
+            Tags.Remove(tag);
+            SaveChanges();
+        }
+
+        public void AddAlarm(Alarm alarm)
+        {
+            Alarms.Add(new Alarm { TagName = alarm.TagName, Type = alarm.Type, Limit = alarm.Limit, Message = alarm.Message });
+            SaveChanges();
+        }
+
+        public void DeleteAlarm(Alarm alarm)
+        {
+            Alarms.Remove(alarm);
+            SaveChanges();
+        }
+
     }
-    
 }

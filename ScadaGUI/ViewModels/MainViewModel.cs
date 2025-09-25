@@ -1,7 +1,7 @@
 ﻿using PLCSimulator;
 using ScadaGUI.Services;
 using ScadaGUI.ViewModels; 
-
+using DataConcentrator;
 namespace ScadaGUI.ViewModels
 {
     public class MainViewModel : BaseViewModel
@@ -19,8 +19,8 @@ namespace ScadaGUI.ViewModels
             _plc = new PLCSimulatorManager();
             _plc.StartPLCSimulator();
 
-            var db = new MockDatabaseService();
-            var concentrator = new MockDataConcentratorService(db, _plc);
+            var db = new ContextClass();
+            var concentrator = new DataCollector(db, _plc);
             var report = new ReportService(db);
 
             TagVM = new TagManagementViewModel(db);
@@ -33,7 +33,7 @@ namespace ScadaGUI.ViewModels
         public void Cleanup()
         {
             _plc.Abort();
-            (MonitorVM.GetDataConcentrator() as MockDataConcentratorService)?.Stop();
+            (MonitorVM.GetDataConcentrator() as DataCollector)?.Stop();
         }
     }
 }
