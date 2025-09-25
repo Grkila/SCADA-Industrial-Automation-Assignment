@@ -18,7 +18,7 @@ namespace DataConcentrator
     }
 
     [Table("Tags")]
-    public class Tag
+    public class Tag : INotifyPropertyChanged
     {
         public const int MAX_NAME_LENGTH = 50;
         public const int MAX_DESCRIPTION_LENGTH = 300;
@@ -112,7 +112,23 @@ namespace DataConcentrator
 
         // Dodaj ovo svojstvo u Tag klasu
         [NotMapped]
-        public double? CurrentValue { get; set; }
+        private double? _currentValue;
+
+        [NotMapped]
+        public double? CurrentValue
+        {
+            get => _currentValue;
+            set
+            {
+                // Only update and notify if the value has actually changed
+                if (_currentValue != value)
+                {
+                    _currentValue = value;
+                    // This is the crucial line that notifies the UI of the change
+                    OnPropertyChanged();
+                }
+            }
+        }
 
         public ICollection<Alarm> Alarms { get; set; }
 

@@ -1,10 +1,11 @@
-﻿using System;
+﻿// In MonitorViewModel.cs
+using DataConcentrator;
+using ScadaGUI.Services;
+using System;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows.Input;
-using DataConcentrator;
-using ScadaGUI.Services;
-using DataConcentrator;
+
 namespace ScadaGUI.ViewModels
 {
     public class MonitorViewModel : BaseViewModel
@@ -38,9 +39,7 @@ namespace ScadaGUI.ViewModels
             {
                 _selectedTag = value;
                 OnPropertyChanged();
-
                 IsOutputTagSelected = _selectedTag != null && (_selectedTag.Type == TagType.AO || _selectedTag.Type == TagType.DO);
-
                 ValueToWrite = string.Empty;
             }
         }
@@ -48,8 +47,14 @@ namespace ScadaGUI.ViewModels
         public MonitorViewModel(DataCollector concentrator)
         {
             _concentrator = concentrator;
+
+            // This is correct. You are getting a reference to the "live" list of tags
+            // that the DataCollector is actively updating.
             MonitoredTags = new ObservableCollection<Tag>(_concentrator.GetTags());
+
             ActiveAlarms = new ObservableCollection<ActiveAlarm>();
+
+            // Subscribe to the event.
             _concentrator.ValuesUpdated += Concentrator_ValuesUpdated;
 
             WriteToTagCommand = new RelayCommand(_ => WriteTagValue(), _ => CanWriteTagValue());
@@ -62,31 +67,24 @@ namespace ScadaGUI.ViewModels
 
         private void WriteTagValue()
         {
-
             System.Diagnostics.Debug.WriteLine($"FRONTEND: Zahtev za upis vrednosti '{ValueToWrite}' na tag '{SelectedTag.Name}'");
             ValueToWrite = string.Empty;
         }
 
+        // *** THIS IS THE SIMPLIFIED METHOD ***
         private void Concentrator_ValuesUpdated(object sender, EventArgs e)
         {
+            // The UI thread is required for updating collections like ActiveAlarms.
             App.Current.Dispatcher.Invoke(() =>
             {
-                var updatedTags = _concentrator.GetTags();
-                foreach (var updatedTag in updatedTags)
+                var currentAlarms = _concentrator.GetActiveAlarms().ToList();
+var alarmsToRemove = ActiveAlarms.Where(a => !currentAlarms.Any(ca => ca.Time == a.Time && ca.TagName == a.TagName)).ToList();
+                foreach (var alarm in alarmsToRemove)
                 {
-                    var tagToUpdate = MonitoredTags.FirstOrDefault(t => t.Name == updatedTag.Name);
-                    if (tagToUpdate != null)
-                    {
-                        // Ažuriramo 'CurrentValue', što automatski osvežava prikaz u tabeli
-                        tagToUpdate.CurrentValue = updatedTag.CurrentValue;
-                    }
+                    ActiveAlarms.Remove(alarm);
                 }
 
-                //AŽURIRANJE ALARMA 
-                var currentAlarms = _concentrator.GetActiveAlarms().ToList();
-                var alarmsToRemove = ActiveAlarms.Where(a => !currentAlarms.Any(ca => ca.Time == a.Time)).ToList();
-                foreach (var alarm in alarmsToRemove) ActiveAlarms.Remove(alarm);
-
+                // Add new alarms
                 foreach (var alarm in currentAlarms)
                 {
                     if (!ActiveAlarms.Any(a => a.Time == alarm.Time && a.TagName == alarm.TagName))
@@ -96,7 +94,29 @@ namespace ScadaGUI.ViewModels
                 }
             });
         }
+        public void HandleTagAdded(Tag tag)
+        {
+            // Ensure UI updates happen on the main thread
+            App.Current.Dispatcher.Invoke(() => {
+                if (!MonitoredTags.Any(t => t.Name == tag.Name))
+                {
+                    MonitoredTags.Add(tag);
+                }
+            });
+        }
 
+        // Add this new method to handle the TagRemoved event
+        public void HandleTagRemoved(Tag tag)
+        {
+            // Ensure UI updates happen on the main thread
+            App.Current.Dispatcher.Invoke(() => {
+                var tagToRemove = MonitoredTags.FirstOrDefault(t => t.Name == tag.Name);
+                if (tagToRemove != null)
+                {
+                    MonitoredTags.Remove(tagToRemove);
+                }
+            });
+        }
         public DataCollector GetDataConcentrator() => _concentrator;
     }
 }

@@ -42,58 +42,47 @@ namespace DataConcentrator
         }
         public IEnumerable<Tag> GetTags() => Tags.ToList();
         public IEnumerable<Alarm> GetAlarms() => Alarms.ToList();
-        public void AddTag(Tag tagFromViewModel)
+        public void AddTag(Tag tag)
         {
-            var newTag = new Tag
-            {
-                Name = tagFromViewModel.Name,
-                Type = tagFromViewModel.Type,
-                IOAddress = tagFromViewModel.IOAddress,
-                Description = tagFromViewModel.Description,
-                CurrentValue = tagFromViewModel.InitialValue ?? 0 // Osiguravamo da i novi tagovi imaju početnu vrednost
-            };
-            foreach (var characteristic in tagFromViewModel.Characteristics)
-            {
-                newTag.Characteristics.Add(characteristic.Key, characteristic.Value);
-            }
-            Tags.Add(newTag);
+            // NO LONGER CREATING A NEW OBJECT.
+            // We are trusting the ViewModel to give us a valid, complete tag.
+            Tags.Add(tag);
             SaveChanges();
         }
-
         public void DeleteTag(Tag tag)
         {
-            Tags.Remove(tag);
-            SaveChanges();
+            // Find the entity that the context is actually tracking
+            // using its primary key.
+            var tagToDelete = Tags.Find(tag.Name);
+
+            if (tagToDelete != null)
+            {
+                // Now remove the entity that we found
+                Tags.Remove(tagToDelete);
+                SaveChanges();
+            }
         }
 
         public void AddAlarm(Alarm alarm)
         {
             try
             {
-                Alarms.Add(new Alarm
-                {
-                    Id = Guid.NewGuid().ToString(),  // Simple GUID-based unique ID
-                    TagName = alarm.TagName,
-                    Type = alarm.Type,
-                    Limit = alarm.Limit,
-                    Message = alarm.Message
-                });
-
+                // Simply add the alarm object that the ViewModel prepared.
+                // Do NOT create a new one here.
+                Alarms.Add(alarm);
                 SaveChanges();
             }
             catch (DbEntityValidationException ex)
             {
-                // This is the crucial part to find the error
+                // Your excellent debugging code remains the same
                 foreach (var entityValidationErrors in ex.EntityValidationErrors)
                 {
                     foreach (var validationError in entityValidationErrors.ValidationErrors)
                     {
-                        // Use Console.WriteLine or Debug.WriteLine to see the error
                         System.Diagnostics.Debug.WriteLine(
                             $"Entity: {entityValidationErrors.Entry.Entity.GetType().Name}, Property: {validationError.PropertyName}, Error: {validationError.ErrorMessage}");
                     }
                 }
-                // Re-throw the exception if you want the application to still crash
                 throw;
             }
         }

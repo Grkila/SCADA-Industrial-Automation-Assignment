@@ -1,10 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 
 namespace DataConcentrator
 {
@@ -15,7 +16,7 @@ namespace DataConcentrator
     }
 
     [Table("Alarms")]
-    public class Alarm
+    public class Alarm 
     {
         public const int MAX_ID_LENGTH = 50;
         public const int MAX_MESSAGE_LENGTH = 1000;
@@ -126,7 +127,7 @@ namespace DataConcentrator
 
         public bool Reset(double currentValue)
         {
-            if (IsActive && IsAcknowledged && !CheckTriggerCondition(currentValue))
+            if (IsActive  && !CheckTriggerCondition(currentValue))
             {
                 IsActive = false;
                 ActivationTime = null;

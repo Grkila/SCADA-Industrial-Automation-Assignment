@@ -445,6 +445,7 @@ namespace DataConcentrator
             {
                 var activatedAlarm = new ActiveAlarm
                 {
+                    AlarmId = alarm.Id,
                     TagName = tagName,
                     Message = alarm.Message,
                     Time = time
@@ -503,6 +504,32 @@ namespace DataConcentrator
                     _db?.Dispose();
                 }
                 disposed = true;
+            }
+        }
+
+        public void OnTagAdded(Tag tag)
+        {
+            lock (locker)
+            {
+                if (!tags.Any(t => t.Name == tag.Name))
+                {
+                    tags.Add(tag);
+                    Console.WriteLine($"DataCollector dynamically added tag: {tag.Name}");
+                }
+            }
+        }
+
+        // Add this new method to dynamically remove a tag from the scanning list
+        public void OnTagRemoved(Tag tag)
+        {
+            lock (locker)
+            {
+                var tagToRemove = tags.FirstOrDefault(t => t.Name == tag.Name);
+                if (tagToRemove != null)
+                {
+                    tags.Remove(tagToRemove);
+                    Console.WriteLine($"DataCollector dynamically removed tag: {tag.Name}");
+                }
             }
         }
 

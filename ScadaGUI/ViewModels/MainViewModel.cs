@@ -28,6 +28,16 @@ namespace ScadaGUI.ViewModels
             MonitorVM = new MonitorViewModel(concentrator);
             ReportVM = new ReportViewModel(report);
             AlarmHistoryVM = new AlarmHistoryViewModel(concentrator);
+
+            TagVM.TagAdded += concentrator.OnTagAdded;
+            TagVM.TagRemoved += concentrator.OnTagRemoved;
+
+            TagVM.TagAdded += MonitorVM.HandleTagAdded;
+            TagVM.TagRemoved += MonitorVM.HandleTagRemoved;
+
+            TagVM.TagAdded += AlarmVM.HandleTagAdded;
+            TagVM.TagRemoved += AlarmVM.HandleTagRemoved;
+
         }
 
         public void Cleanup()

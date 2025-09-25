@@ -1,10 +1,11 @@
-﻿using System.Collections.ObjectModel;
+﻿using DataConcentrator;
+using DataConcentrator;
+using ScadaGUI.Services;
+using System;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Input;
-using DataConcentrator;
-using ScadaGUI.Services;
-using DataConcentrator;
 namespace ScadaGUI.ViewModels
 {
     public class TagManagementViewModel : BaseViewModel
@@ -13,6 +14,8 @@ namespace ScadaGUI.ViewModels
         private Tag _newTag = new Tag();
         private Tag _selectedTag;
         private string _errorMessage;
+        public event Action<Tag> TagAdded;
+        public event Action<Tag> TagRemoved;
 
         private TagType? _selectedTagTypeForComboBox;
         public TagType? SelectedTagTypeForComboBox
@@ -111,42 +114,48 @@ namespace ScadaGUI.ViewModels
 
         private void AddTag()
         {
-           
+            // 1. Perform validation (your existing code is perfect)
             if (!CanAddTag())
             {
                 ErrorMessage = "Tag Name and Type are required.";
                 return;
             }
-            if (Tags.Any(t => t.Name == NewTag.Name)) { ErrorMessage = "Tag with that name already exists."; return; }
+            if (Tags.Any(t => t.Name == NewTag.Name))
+            {
+                ErrorMessage = "Tag with that name already exists.";
+                return;
+            }
 
-           
+            // 2. Finalize the NewTag object
             NewTag.Type = _selectedTagTypeForComboBox.Value;
 
+            // 3. Save it to the database
             _db.AddTag(NewTag);
 
-            var tagToAdd = new Tag();
-            tagToAdd.Name = NewTag.Name;
-            tagToAdd.Description = NewTag.Description;
-            tagToAdd.IOAddress = NewTag.IOAddress;
-            tagToAdd.Type = NewTag.Type;
-            tagToAdd.LowLimit = NewTag.LowLimit;
-            tagToAdd.HighLimit = NewTag.HighLimit;
-            tagToAdd.Units = NewTag.Units;
-            tagToAdd.ScanTime = NewTag.ScanTime;
-            tagToAdd.IsScanning = NewTag.IsScanning;
-            tagToAdd.InitialValue = NewTag.InitialValue;
-            Tags.Add(tagToAdd);
 
+            // 4. Add the *exact same object* to the UI's collection.
+            //    This is the key simplification. The UI will update instantly.
+            Tags.Add(NewTag);
+            TagAdded?.Invoke(NewTag);
+
+            // 5. Reset the form for the next entry. This is a crucial step
+            //    as it points NewTag to a new, empty object.
             ResetForm();
         }
 
         private void DeleteTag()
         {
             if (_selectedTag != null)
+
             {
+                var tagToDelete = _selectedTag;
                 _db.DeleteTag(_selectedTag);
                 Tags.Remove(_selectedTag);
                 ResetForm();
+                TagRemoved?.Invoke(tagToDelete);
+
+                // Optional: Clear selection after deletion
+                SelectedTag = null;
             }
         }
     }
