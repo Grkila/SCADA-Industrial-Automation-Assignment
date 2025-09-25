@@ -30,6 +30,12 @@ namespace DataConcentrator
                 .HasForeignKey(a => a.TagId)
                 .WillCascadeOnDelete(true);
 
+            // Configure the CharacteristicsJson column for storing Dictionary as JSON
+            modelBuilder.Entity<Tag>()
+                .Property(t => t.CharacteristicsJson)
+                .HasColumnType("NVARCHAR(MAX)")
+                .IsOptional();
+
             base.OnModelCreating(modelBuilder);
         }
     }
