@@ -8,7 +8,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace DataConcentrator
 {
-    public enum AlarmTrigger
+    public enum AlarmType
     {
         Above,
         Below
@@ -27,13 +27,13 @@ namespace DataConcentrator
         [Required]
         [StringLength(MAX_ID_LENGTH)]
         [ForeignKey("Tag")]
-        public string TagId { get; set; }
+        public string TagName { get; set; }
 
         [Required]
-        public AlarmTrigger Trigger { get; set; }
+        public AlarmType Type { get; set; }
 
         [Required]
-        public double Threshold { get; set; }
+        public double Limit { get; set; }
 
         [Required]
         [StringLength(MAX_MESSAGE_LENGTH)]
@@ -50,7 +50,7 @@ namespace DataConcentrator
         {
         }
 
-        public Alarm(string id, AlarmTrigger trigger, double threshold, string message)
+        public Alarm(string id, AlarmType trigger, double threshold, string message)
         {
             ValidateAndSetId(id);
             ValidateAndSetTrigger(trigger);
@@ -68,11 +68,11 @@ namespace DataConcentrator
             Id = value;
         }
 
-        public void ValidateAndSetTrigger(AlarmTrigger value)
+        public void ValidateAndSetTrigger(AlarmType value)
         {
-            if (!Enum.IsDefined(typeof(AlarmTrigger), value))
-                throw new InvalidOperationException($"Invalid AlarmTrigger value: {value}");
-            Trigger = value;
+            if (!Enum.IsDefined(typeof(AlarmType), value))
+                throw new InvalidOperationException($"Invalid AlarmType value: {value}");
+            Type = value;
         }
 
         public void ValidateAndSetThreshold(double value)
@@ -81,7 +81,7 @@ namespace DataConcentrator
                 throw new ArgumentException("Threshold cannot be NaN");
             if (double.IsInfinity(value))
                 throw new ArgumentException("Threshold cannot be Infinity");
-            Threshold = value;
+            Limit = value;
         }
 
         public void ValidateAndSetMessage(string value)
@@ -96,7 +96,7 @@ namespace DataConcentrator
         // Business logika
         public bool CheckTriggerCondition(double currentValue)
         {
-            return Trigger == AlarmTrigger.Above ? currentValue > Threshold : currentValue < Threshold;
+            return (Type==AlarmType.Above) ? currentValue > Limit : currentValue < Limit;
         }
 
         public bool TryActivate(double currentValue)
@@ -139,8 +139,8 @@ namespace DataConcentrator
         public void ValidateConfiguration()
         {
             ValidateAndSetId(Id);
-            ValidateAndSetTrigger(Trigger);
-            ValidateAndSetThreshold(Threshold);
+            ValidateAndSetTrigger(Type);
+            ValidateAndSetThreshold(Limit);
             ValidateAndSetMessage(Message);
         }
     }

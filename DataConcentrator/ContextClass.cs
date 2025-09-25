@@ -18,6 +18,7 @@ namespace DataConcentrator
 
         public virtual DbSet<Tag> Tags { get; set; }
         public virtual DbSet<Alarm> Alarms { get; set; }
+
         public virtual DbSet<ActivatedAlarm> ActivatedAlarms { get; set; }
 
         protected override void OnModelCreating(DbModelBuilder modelBuilder)
@@ -27,7 +28,7 @@ namespace DataConcentrator
             modelBuilder.Entity<Tag>()
                 .HasMany(t => t.Alarms)
                 .WithRequired(a => a.Tag)
-                .HasForeignKey(a => a.TagId)
+                .HasForeignKey(a => a.TagName)
                 .WillCascadeOnDelete(true);
 
             // Configure the CharacteristicsJson column for storing Dictionary as JSON
@@ -38,6 +39,28 @@ namespace DataConcentrator
 
             base.OnModelCreating(modelBuilder);
         }
+        public IEnumerable<Tag> GetTags() => Tags.ToList();
+        public IEnumerable<Alarm> GetAlarms() => Alarms.ToList();
+        public void AddTag(Tag tagFromViewModel)
+        {
+            var newTag = new Tag
+            {
+                Name = tagFromViewModel.Name,
+                Type = tagFromViewModel.Type,
+                IOAddress = tagFromViewModel.IOAddress,
+                Description = tagFromViewModel.Description,
+                CurrentValue = tagFromViewModel.InitialValue ?? 0 // Osiguravamo da i novi tagovi imaju početnu vrednost
+            };
+            foreach (var characteristic in tagFromViewModel.Characteristics)
+            {
+                newTag.Characteristics.Add(characteristic.Key, characteristic.Value);
+            }
+            Tags.Add(newTag);
+        }
+
+        public void DeleteTag(Tag tag) => Tags.Remove(tag);
+        public void AddAlarm(Alarm alarm) => Alarms.Add(new Alarm { TagName = alarm.TagName, Type = alarm.Type, Limit = alarm.Limit, Message = alarm.Message });
+        public void DeleteAlarm(Alarm alarm) => Alarms.Remove(alarm);
     }
     
 }

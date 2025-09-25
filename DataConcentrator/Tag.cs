@@ -1,9 +1,11 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using Newtonsoft.Json;
+using System.Linq;
+using System.Runtime.CompilerServices;
 
 namespace DataConcentrator
 {
@@ -18,15 +20,15 @@ namespace DataConcentrator
     [Table("Tags")]
     public class Tag
     {
-        public const int MAX_ID_LENGTH = 50;
+        public const int MAX_NAME_LENGTH = 50;
         public const int MAX_DESCRIPTION_LENGTH = 300;
         public const int MAX_IOADDRESS_LENGTH = 50;
         public const int MIN_IO_ADDRESS = 0;
         public const int MAX_IO_ADDRESS = 65535;
 
         [Key]
-        [StringLength(MAX_ID_LENGTH)]
-        public string Id { get; set; }
+        [StringLength(MAX_NAME_LENGTH)]
+        public string Name { get; set; }
 
         [Required]
         [StringLength(MAX_DESCRIPTION_LENGTH)]
@@ -41,113 +43,88 @@ namespace DataConcentrator
 
         // This is the property your application code will use - not mapped to database
         [NotMapped]
-        private Dictionary<string, object> _characteristics = new Dictionary<string, object>();
+        public Dictionary<string, object> Characteristics { get; private set; } = new Dictionary<string, object>();
 
         // This is the backing property that EF maps to the database
         public string CharacteristicsJson
         {
             get
             {
-                return _characteristics == null || _characteristics.Count == 0 
-                    ? null 
-                    : JsonConvert.SerializeObject(_characteristics);
+                return Characteristics == null || Characteristics.Count == 0
+                    ? null
+                    : JsonConvert.SerializeObject(Characteristics);
             }
             set
             {
                 if (string.IsNullOrEmpty(value))
                 {
-                    _characteristics = new Dictionary<string, object>();
+                    Characteristics = new Dictionary<string, object>();
                 }
                 else
                 {
                     try
                     {
-                        _characteristics = JsonConvert.DeserializeObject<Dictionary<string, object>>(value) 
+                        Characteristics = JsonConvert.DeserializeObject<Dictionary<string, object>>(value)
                                          ?? new Dictionary<string, object>();
                     }
                     catch (JsonException)
                     {
                         // If JSON is invalid, initialize with empty dictionary
-                        _characteristics = new Dictionary<string, object>();
+                        Characteristics = new Dictionary<string, object>();
                     }
                 }
             }
         }
-
         [NotMapped]
-        public double? ScanTime
-        {
-            get => GetCharacteristic<double?>("ScanTime");
-            set => SetCharacteristic("ScanTime", value);
-        }
-
+        public double? LowLimit { get => GetValue<double?>("LowLimit"); set => SetValue("LowLimit", value); }
         [NotMapped]
-        public bool? OnOffScan
-        {
-            get => GetCharacteristic<bool?>("OnOffScan");
-            set => SetCharacteristic("OnOffScan", value);
-        }
-
+        public double? HighLimit { get => GetValue<double?>("HighLimit"); set => SetValue("HighLimit", value); }
         [NotMapped]
-        public double? LowLimit
-        {
-            get => GetCharacteristic<double?>("LowLimit");
-            set => SetCharacteristic("LowLimit", value);
-        }
-
+        public string Units { get => GetValue<string>("Units"); set => SetValue("Units", value); }
         [NotMapped]
-        public double? HighLimit
-        {
-            get => GetCharacteristic<double?>("HighLimit");
-            set => SetCharacteristic("HighLimit", value);
-        }
-
+        public double? ScanTime { get => GetValue<int?>("ScanTime"); set => SetValue("ScanTime", value); }
         [NotMapped]
-        public string Units
-        {
-            get => GetCharacteristic<string>("Units");
-            set => SetCharacteristic("Units", value);
-        }
-
+        public bool? IsScanning { get => GetValue<bool?>("IsScanning"); set { SetValue("IsScanning", value); OnPropertyChanged(); } } // Dodat OnPropertyChanged za CheckBox
         [NotMapped]
-        public double? InitialValue
-        {
-            get => GetCharacteristic<double?>("InitialValue");
-            set => SetCharacteristic("InitialValue", value);
-        }
+        public double? InitialValue { get => GetValue<double?>("InitialValue"); set => SetValue("InitialValue", value); }
+
 
         // Helper metode za rad sa dictionary
-        private T GetCharacteristic<T>(string key)
+        private T GetValue<T>(string key)
         {
-            return _characteristics.TryGetValue(key, out var value) ? (T)value : default(T);
+            if (Characteristics.TryGetValue(key, out object value) && value != null)
+            {
+                var targetType = typeof(T);
+                if (targetType.IsGenericType && targetType.GetGenericTypeDefinition() == typeof(Nullable<>))
+                {
+                    targetType = Nullable.GetUnderlyingType(targetType);
+                }
+                return (T)Convert.ChangeType(value, targetType);
+            }
+            return default(T);
         }
-        private void SetCharacteristic(string key, object value)
+
+        private void SetValue(string key, object value)
         {
-            if (value == null)
-            {
-                _characteristics.Remove(key);
-            }
-            else
-            {
-                _characteristics[key] = value;
-            }
+            Characteristics[key] = value;
+            OnPropertyChanged(key);
         }
 
         // Dodaj ovo svojstvo u Tag klasu
         [NotMapped]
         public double? CurrentValue { get; set; }
 
-         public ICollection<Alarm> Alarms { get; set; }
+        public ICollection<Alarm> Alarms { get; set; }
 
         public Tag()
         {
             Alarms = new List<Alarm>();
         }
 
-        public Tag(TagType type, string id, string description, string ioAddress) : this()
+        public Tag(TagType type, string name, string description, string ioAddress) : this()
         {
             Type = type;
-            Id = id;
+            Name = name;
             Description = description;
             IOAddress = ioAddress;
         }
@@ -158,13 +135,13 @@ namespace DataConcentrator
             if (!IsInputTag())
                 throw new InvalidOperationException("ScanTime can only be set for input tags (AI, DI).");
             ScanTime = value;
-        }       
+        }
 
         public void ValidateAndSetOnOffScan(bool? value)
         {
             if (!IsInputTag())
                 throw new InvalidOperationException("OnOffScan can only be set for input tags (AI, DI).");
-            OnOffScan = value;
+            IsScanning = value;
         }
 
         public void ValidateAndSetLowLimit(double? value)
@@ -200,12 +177,12 @@ namespace DataConcentrator
         {
             if (!IsOutputTag())
                 throw new InvalidOperationException("WriteValue can only be called on output tags (AO, DO).");
-            
+
             if (IsDigitalTag() && value != 0 && value != 1)
                 throw new ArgumentException("Digital tags can only accept values 0 or 1.");
-            
+
             CurrentValue = value;
-            Console.WriteLine($" Written {value} to tag {Id}");
+            Console.WriteLine($" Written {value} to tag {Name}");
         }
 
         // Dodaj metodu za čitanje trenutne vrednosti
@@ -269,18 +246,18 @@ namespace DataConcentrator
                     }
 
                     // Set the foreign key
-                    alarm.TagId = this.Id;
-                    
+                    alarm.TagName = this.Name;
+
                     // Save to database
                     context.Alarms.Add(alarm);
                     context.SaveChanges();
-                    
+
                     Console.WriteLine($"Alarm {alarm.Id} saved to database");
                 }
-                
+
                 // Add to in-memory collection only after successful database save
                 Alarms.Add(alarm);
-                Console.WriteLine($"Alarm {alarm.Id} added to tag {this.Id}");
+                Console.WriteLine($"Alarm {alarm.Id} added to tag {this.Name}");
             }
             catch (Exception ex)
             {
@@ -301,7 +278,7 @@ namespace DataConcentrator
                 // Remove from database first
                 using (var context = new ContextClass())
                 {
-                    var dbAlarm = context.Alarms.FirstOrDefault(a => a.Id == alarmId && a.TagId == this.Id);
+                    var dbAlarm = context.Alarms.FirstOrDefault(a => a.Id == alarmId && a.TagName == this.Name);
                     if (dbAlarm != null)
                     {
                         context.Alarms.Remove(dbAlarm);
@@ -317,7 +294,7 @@ namespace DataConcentrator
                     bool removed = Alarms.Remove(alarm);
                     if (removed)
                     {
-                        Console.WriteLine($"Alarm {alarmId} removed from tag {this.Id}");
+                        Console.WriteLine($"Alarm {alarmId} removed from tag {this.Name}");
                     }
                     return removed;
                 }
@@ -422,17 +399,17 @@ namespace DataConcentrator
                 // Update in database first
                 using (var context = new ContextClass())
                 {
-                    var dbAlarm = context.Alarms.FirstOrDefault(a => a.Id == updatedAlarm.Id && a.TagId == this.Id);
+                    var dbAlarm = context.Alarms.FirstOrDefault(a => a.Id == updatedAlarm.Id && a.TagName == this.Name);
                     if (dbAlarm == null)
                     {
                         throw new InvalidOperationException($"Alarm {updatedAlarm.Id} not found in database");
                     }
 
                     // Update properties
-                    dbAlarm.Trigger = updatedAlarm.Trigger;
-                    dbAlarm.Threshold = updatedAlarm.Threshold;
+                    dbAlarm.Type = updatedAlarm.Type;
+                    dbAlarm.Limit = updatedAlarm.Limit;
                     dbAlarm.Message = updatedAlarm.Message;
-                    
+
                     context.SaveChanges();
                     Console.WriteLine($"Alarm {updatedAlarm.Id} updated in database");
                 }
@@ -441,8 +418,8 @@ namespace DataConcentrator
                 var existingAlarm = Alarms.FirstOrDefault(a => a.Id == updatedAlarm.Id);
                 if (existingAlarm != null)
                 {
-                    existingAlarm.Trigger = updatedAlarm.Trigger;
-                    existingAlarm.Threshold = updatedAlarm.Threshold;
+                    existingAlarm.Type = updatedAlarm.Type;
+                    existingAlarm.Limit = updatedAlarm.Limit;
                     existingAlarm.Message = updatedAlarm.Message;
                     Console.WriteLine($"Alarm {updatedAlarm.Id} updated in memory");
                 }
@@ -457,19 +434,24 @@ namespace DataConcentrator
         // Validacija celokupnog objekta
         public void ValidateConfiguration()
         {
-            if (string.IsNullOrWhiteSpace(Id))
-                throw new InvalidOperationException("Id cannot be null or empty.");
-            if (Id.Length > MAX_ID_LENGTH)
-                throw new InvalidOperationException($"Id cannot exceed {MAX_ID_LENGTH} characters.");
+            if (string.IsNullOrWhiteSpace(Name))
+                throw new InvalidOperationException("Name cannot be null or empty.");
+            if (Name.Length > MAX_NAME_LENGTH)
+                throw new InvalidOperationException($"Name cannot exceed {MAX_NAME_LENGTH} characters.");
             if (string.IsNullOrWhiteSpace(Description))
                 throw new InvalidOperationException("Description cannot be null or empty.");
             if (Description.Length > MAX_DESCRIPTION_LENGTH)
                 throw new InvalidOperationException($"Description cannot exceed {MAX_DESCRIPTION_LENGTH} characters.");
-            
+
             if (string.IsNullOrWhiteSpace(IOAddress))
                 throw new InvalidOperationException("IOAddress cannot be null or empty.");
             if (IOAddress.Length > MAX_IOADDRESS_LENGTH)
                 throw new InvalidOperationException($"IOAddress cannot exceed {MAX_IOADDRESS_LENGTH} characters.");
+        }
+        public event PropertyChangedEventHandler PropertyChanged;
+        protected void OnPropertyChanged([CallerMemberName] string propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
     }
 }
