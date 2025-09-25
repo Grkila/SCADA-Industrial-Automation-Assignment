@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Data.Entity;
 namespace DataConcentrator
 {
     
@@ -20,10 +21,29 @@ namespace DataConcentrator
         
         public DataCollector()
         {
-            tags = new List<Tag>();
+            //tags = new List<Tag>();
             tagTimers = new Dictionary<string, Timer>();
-        }
+            LoadConfiguration();
 
+        }
+        private void LoadConfiguration()
+        {
+            try
+            {
+                using (var context = new ContextClass())
+                {
+                    // Učitavamo tagove i njihove vezane alarme odjednom (Eager Loading)
+                    tags = context.Tags.Include(t => t.Alarms).ToList();
+                    Console.WriteLine($"[INFO] Successfully loaded {tags.Count} tags from the database.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[ERROR] Failed to load configuration from database: {ex.Message}");
+                // Inicijalizujemo praznu listu ako učitavanje ne uspe
+                tags = new List<Tag>();
+            }
+        }
 
 
         public void AddTag(Tag tag)

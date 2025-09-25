@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Newtonsoft.Json;
 
 namespace DataConcentrator
 {
@@ -36,40 +37,77 @@ namespace DataConcentrator
         [Required]
         public TagType Type { get; set; }
 
-        [Required]
-        private readonly Dictionary<string, object> _characteristics = new Dictionary<string, object>();
+        // This is the property your application code will use - not mapped to database
+        [NotMapped]
+        private Dictionary<string, object> _characteristics = new Dictionary<string, object>();
 
-        // Refaktorisani getteri i setteri koristeći dictionary
+        // This is the backing property that EF maps to the database
+        public string CharacteristicsJson
+        {
+            get
+            {
+                return _characteristics == null || _characteristics.Count == 0 
+                    ? null 
+                    : JsonConvert.SerializeObject(_characteristics);
+            }
+            set
+            {
+                if (string.IsNullOrEmpty(value))
+                {
+                    _characteristics = new Dictionary<string, object>();
+                }
+                else
+                {
+                    try
+                    {
+                        _characteristics = JsonConvert.DeserializeObject<Dictionary<string, object>>(value) 
+                                         ?? new Dictionary<string, object>();
+                    }
+                    catch (JsonException)
+                    {
+                        // If JSON is invalid, initialize with empty dictionary
+                        _characteristics = new Dictionary<string, object>();
+                    }
+                }
+            }
+        }
+
+        [NotMapped]
         public double? ScanTime
         {
             get => GetCharacteristic<double?>("ScanTime");
             set => SetCharacteristic("ScanTime", value);
         }
 
+        [NotMapped]
         public bool? OnOffScan
         {
             get => GetCharacteristic<bool?>("OnOffScan");
             set => SetCharacteristic("OnOffScan", value);
         }
 
+        [NotMapped]
         public double? LowLimit
         {
             get => GetCharacteristic<double?>("LowLimit");
             set => SetCharacteristic("LowLimit", value);
         }
 
+        [NotMapped]
         public double? HighLimit
         {
             get => GetCharacteristic<double?>("HighLimit");
             set => SetCharacteristic("HighLimit", value);
         }
 
+        [NotMapped]
         public string Units
         {
             get => GetCharacteristic<string>("Units");
             set => SetCharacteristic("Units", value);
         }
 
+        [NotMapped]
         public double? InitialValue
         {
             get => GetCharacteristic<double?>("InitialValue");
@@ -118,7 +156,7 @@ namespace DataConcentrator
             if (!IsInputTag())
                 throw new InvalidOperationException("ScanTime can only be set for input tags (AI, DI).");
             ScanTime = value;
-        }
+        }       
 
         public void ValidateAndSetOnOffScan(bool? value)
         {
@@ -216,6 +254,24 @@ namespace DataConcentrator
             if (Alarms.Any(a => a.Id == alarm.Id))
             {
                 throw new InvalidOperationException($"Alarm with ID '{alarm.Id}' already exists for this tag.");
+            }
+
+            // NOVA PROVERA: Proverava da li alarm ID već postoji u bazi
+            try
+            {
+                using (var context = new ContextClass())
+                {
+                    if (context.Alarms.Any(a => a.Id == alarm.Id))
+                    {
+                        Console.WriteLine($"UPOZORENJE: Alarm sa ID '{alarm.Id}' već postoji u bazi podataka. Dodavanje preskočeno.");
+                        return; // Vraća se bez dodavanja alarma
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"GREŠKA pri proveri alarma u bazi: {ex.Message}. Dodavanje preskočeno.");
+                return;
             }
 
             alarm.TagId = this.Id;
