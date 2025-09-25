@@ -35,8 +35,7 @@ namespace DataConcentrator
             _activeAlarms = new List<ActiveAlarm>();
             tagTimers = new Dictionary<string, System.Threading.Timer>();
 
-            // Setup main timer for reading values (matching MockDataConcentratorService behavior)
-            _timer = new Timer(500);
+            _timer = new Timer(1);
             _timer.Elapsed += (s, e) => ReadValuesFromPLC();
 
             // Load configuration and start
@@ -58,29 +57,36 @@ namespace DataConcentrator
                 {
                     foreach (var tag in GetTags())
                     {
-                        if (tag.IsScanning != false && tag.IsInputTag()) // Scan if IsScanning is TRUE or NULL
+                        // The rule is still the same: must be an input tag with scanning enabled
+                        if (tag.IsScanning != false && tag.IsInputTag())
                         {
-                            try
-                            {
-                                // Read value from PLC
-                                double currentValue = ReadTagValue(tag);
-                                tag.CurrentValue = currentValue;
+                            // *** NEW LOGIC IS HERE ***
+                            // Get the required scan time. Default to 1000ms if not set.
+                            double requiredScanTime = tag.ScanTime ?? 1000;
 
-                                // Save current value to database
-                                SaveCurrentValueToDatabase(tag, currentValue);
-
-                                // Check alarms for this tag
-                                CheckAlarmsForTag(tag);
-                            }
-                            catch (Exception ex)
+                            // Check if enough time has passed since the last scan
+                            if ((DateTime.Now - tag.LastScanned).TotalMilliseconds >= requiredScanTime)
                             {
-                                Console.WriteLine($"Error reading tag {tag.Name}: {ex.Message}");
+                                try
+                                {
+                                    // It's time to scan this tag!
+                                    double currentValue = ReadTagValue(tag);
+                                    tag.CurrentValue = currentValue;
+
+                                    // CRUCIAL: Update the last scanned time to now
+                                    tag.LastScanned = DateTime.Now;
+
+                                    SaveCurrentValueToDatabase(tag, currentValue);
+                                    CheckAlarmsForTag(tag);
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.WriteLine($"Error reading tag {tag.Name}: {ex.Message}");
+                                }
                             }
                         }
                     }
                 }
-
-                // Trigger the ValuesUpdated event
                 ValuesUpdated?.Invoke(this, EventArgs.Empty);
             }
             catch (Exception ex)
@@ -188,14 +194,13 @@ namespace DataConcentrator
                     if (tag != null)
                     {
                         tag.IsScanning = enable;
-                        _db.SaveChanges();
+                        _db.SaveChanges(); // Persists the change
 
-                        // Update in memory
+                        // Update in the DataCollector's active memory
                         var memoryTag = tags?.FirstOrDefault(t => t.Name == tagName);
-                        if (memoryTag != null && memoryTag.IsInputTag())
+                        if (memoryTag != null)
                         {
                             memoryTag.IsScanning = enable;
-                            Console.WriteLine($"Tag {tagName} scanning: {(enable ? "ENABLED" : "DISABLED")}");
                         }
                     }
                 }

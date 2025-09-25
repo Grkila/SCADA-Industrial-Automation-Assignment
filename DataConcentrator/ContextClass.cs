@@ -47,6 +47,10 @@ namespace DataConcentrator
             // NO LONGER CREATING A NEW OBJECT.
             // We are trusting the ViewModel to give us a valid, complete tag.
             Tags.Add(tag);
+            if (string.IsNullOrEmpty(tag.Description))
+            {
+                tag.Description = $"{tag.Name} with address {tag.IOAddress}";
+            }
             SaveChanges();
         }
         public void DeleteTag(Tag tag)

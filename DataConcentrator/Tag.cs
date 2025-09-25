@@ -45,6 +45,12 @@ namespace DataConcentrator
         [NotMapped]
         public Dictionary<string, object> Characteristics { get; private set; } = new Dictionary<string, object>();
 
+        [NotMapped]
+        public DateTime LastScanned { get; set; }
+        public event Action<Tag, bool> ScanStateChanged;
+        [NotMapped]
+        private bool? _isScanning;
+
         // This is the backing property that EF maps to the database
         public string CharacteristicsJson
         {
@@ -84,8 +90,6 @@ namespace DataConcentrator
         [NotMapped]
         public double? ScanTime { get => GetValue<int?>("ScanTime"); set => SetValue("ScanTime", value); }
         [NotMapped]
-        public bool? IsScanning { get => GetValue<bool?>("IsScanning"); set { SetValue("IsScanning", value); OnPropertyChanged(); } } // Dodat OnPropertyChanged za CheckBox
-        [NotMapped]
         public double? InitialValue { get => GetValue<double?>("InitialValue"); set => SetValue("InitialValue", value); }
 
 
@@ -111,7 +115,6 @@ namespace DataConcentrator
         }
 
         // Dodaj ovo svojstvo u Tag klasu
-        [NotMapped]
         private double? _currentValue;
 
         [NotMapped]
@@ -468,6 +471,21 @@ namespace DataConcentrator
         protected void OnPropertyChanged([CallerMemberName] string propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+        public bool? IsScanning
+        {
+            get => _isScanning;
+            set
+            {
+                if (_isScanning != value)
+                {
+                    _isScanning = value;
+                    OnPropertyChanged(); // This updates the UI
+
+                    // This fires the new event to notify the ViewModel
+                    ScanStateChanged?.Invoke(this, _isScanning ?? false);
+                }
+            }
         }
     }
 }

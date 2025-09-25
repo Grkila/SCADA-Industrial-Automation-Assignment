@@ -66,13 +66,36 @@ namespace ScadaGUI.ViewModels
         public MonitorViewModel(DataCollector concentrator)
         {
             _concentrator = concentrator;
-            MonitoredTags = new ObservableCollection<Tag>(_concentrator.GetTags());
             ActiveAlarms = new ObservableCollection<ActiveAlarm>();
             _concentrator.ValuesUpdated += Concentrator_ValuesUpdated;
+
+            // Load tags and subscribe to the event for each one
+            MonitoredTags = new ObservableCollection<Tag>();
+            foreach (var tag in _concentrator.GetTags())
+            {
+                tag.ScanStateChanged += OnTagScanStateChanged; // Subscribe to the event
+                MonitoredTags.Add(tag);
+            }
+
             WriteToTagCommand = new RelayCommand(_ => WriteTagValue(), _ => CanWriteTagValue());
         }
 
-        // --- MODIFIED: CanWriteTagValue clears old messages ---
+        // This is the event handler that will be called when a checkbox is clicked
+        private void OnTagScanStateChanged(Tag changedTag, bool isScanning)
+        {
+            try
+            {
+                // Call the method on your DataCollector to persist the change
+                _concentrator.SetTagScanning(changedTag.Name, isScanning);
+                System.Diagnostics.Debug.WriteLine($"VIEWMODEL: Instructed DataCollector to set scanning for '{changedTag.Name}' to {isScanning}");
+            }
+            catch (Exception ex)
+            {
+                // Handle potential errors (e.g., display a message to the user)
+                System.Diagnostics.Debug.WriteLine($"ERROR: Failed to update scan state. {ex.Message}");
+            }
+        }
+
         private bool CanWriteTagValue()
         {
             // As soon as the user can write, clear any old status messages
