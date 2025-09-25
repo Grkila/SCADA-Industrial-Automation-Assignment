@@ -1,41 +1,45 @@
-﻿using System;
+﻿using PLCSimulator;
+using System;
 using System.Collections.Generic;
+using System.Data.Entity;
 using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Data.Entity;
+
 namespace DataConcentrator
 {
     
     public class DataCollector
     {
-        
+        private readonly ContextClass _db;
+        private PLCSimulatorManager _plc;
         private volatile bool isRunning = false;
         private static readonly object locker = new object();
         private PLCSimulator.PLCSimulatorManager plcSimulator;
+        private readonly List<ActivatedAlarm> _activeAlarms = new List<ActivatedAlarm>();
 
         private List<Tag> tags;
         
         private Dictionary<string, Timer> tagTimers;
-        
-        public DataCollector()
+        public event EventHandler ValuesUpdated;
+        public event Action<ActivatedAlarm> AlarmTriggered;
+
+        public DataCollector(ContextClass db, PLCSimulatorManager plc)
         {
-            //tags = new List<Tag>();
+            _db = db ?? throw new ArgumentNullException(nameof(db));
+            _plc = plc ?? throw new ArgumentNullException(nameof(plc));
             tagTimers = new Dictionary<string, Timer>();
             LoadConfiguration();
-
         }
+
         private void LoadConfiguration()
         {
             try
             {
-                using (var context = new ContextClass())
-                {
-                    // Učitavamo tagove i njihove vezane alarme odjednom (Eager Loading)
-                    tags = context.Tags.Include(t => t.Alarms).ToList();
-                    Console.WriteLine($"[INFO] Successfully loaded {tags.Count} tags from the database.");
-                }
+                // Učitavamo tagove i njihove vezane alarme odjednom (Eager Loading)
+                tags = _db.Tags.Include(t => t.Alarms).ToList();
+                Console.WriteLine($"[INFO] Successfully loaded {tags.Count} tags from the database.");
             }
             catch (Exception ex)
             {
@@ -45,6 +49,7 @@ namespace DataConcentrator
             }
         }
 
+        public IEnumerable<Tag> GetTags() => _db.GetTags();
 
         public void AddTag(Tag tag)
         {
@@ -55,19 +60,15 @@ namespace DataConcentrator
             {
                 try
                 {
-                    // Save to database first
-                    using (var context = new ContextClass())
+                    // Check if tag already exists
+                    if (_db.Tags.Any(t => t.Id == tag.Id))
                     {
-                        // Check if tag already exists
-                        if (context.Tags.Any(t => t.Id == tag.Id))
-                        {
-                            throw new InvalidOperationException($"Tag with ID '{tag.Id}' already exists in database.");
-                        }
-
-                        context.Tags.Add(tag);
-                        context.SaveChanges();
-                        Console.WriteLine($"Tag {tag.Id} saved to database");
+                        throw new InvalidOperationException($"Tag with ID '{tag.Id}' already exists in database.");
                     }
+
+                    _db.Tags.Add(tag);
+                    _db.SaveChanges();
+                    Console.WriteLine($"Tag {tag.Id} saved to database");
 
                     // Then add to in-memory collection
                     tags.Add(tag);
@@ -85,7 +86,7 @@ namespace DataConcentrator
                     Console.WriteLine($"Error adding tag {tag.Id}: {ex.Message}");
                     throw;
                 }
-            }
+            }   
         }
 
         public void RemoveTag(string tagId)
@@ -98,15 +99,12 @@ namespace DataConcentrator
                 try
                 {
                     // Remove from database first
-                    using (var context = new ContextClass())
+                    var dbTag = _db.Tags.FirstOrDefault(t => t.Id == tagId);
+                    if (dbTag != null)
                     {
-                        var dbTag = context.Tags.FirstOrDefault(t => t.Id == tagId);
-                        if (dbTag != null)
-                        {
-                            context.Tags.Remove(dbTag);
-                            context.SaveChanges();
-                            Console.WriteLine($"Tag {tagId} removed from database");
-                        }
+                        _db.Tags.Remove(dbTag);
+                        _db.SaveChanges();
+                        Console.WriteLine($"Tag {tagId} removed from database");
                     }
 
                     // Remove from in-memory collection
@@ -137,22 +135,19 @@ namespace DataConcentrator
                 try
                 {
                     // Update in database
-                    using (var context = new ContextClass())
+                    var dbTag = _db.Tags.FirstOrDefault(t => t.Id == updatedTag.Id);
+                    if (dbTag == null)
                     {
-                        var dbTag = context.Tags.FirstOrDefault(t => t.Id == updatedTag.Id);
-                        if (dbTag == null)
-                        {
-                            throw new InvalidOperationException($"Tag {updatedTag.Id} not found in database");
-                        }
-
-                        // Update properties
-                        dbTag.Description = updatedTag.Description;
-                        dbTag.IOAddress = updatedTag.IOAddress;
-                        dbTag.CharacteristicsJson = updatedTag.CharacteristicsJson;
-                        
-                        context.SaveChanges();
-                        Console.WriteLine($"Tag {updatedTag.Id} updated in database");
+                        throw new InvalidOperationException($"Tag {updatedTag.Id} not found in database");
                     }
+
+                    // Update properties
+                    dbTag.Description = updatedTag.Description;
+                    dbTag.IOAddress = updatedTag.IOAddress;
+                    dbTag.CharacteristicsJson = updatedTag.CharacteristicsJson;
+                    
+                    _db.SaveChanges();
+                    Console.WriteLine($"Tag {updatedTag.Id} updated in database");
 
                     // Update in-memory collection
                     var existingTag = tags.FirstOrDefault(t => t.Id == updatedTag.Id);
@@ -183,6 +178,8 @@ namespace DataConcentrator
         }
 
         // Method for adding alarms to existing tags
+        public IEnumerable<ActivatedAlarm> GetActiveAlarms() => _activeAlarms;
+
         public void AddAlarmToTag(string tagId, Alarm alarm)
         {
             if (string.IsNullOrWhiteSpace(tagId))
@@ -194,27 +191,24 @@ namespace DataConcentrator
             {
                 try
                 {
-                    using (var context = new ContextClass())
+                    var dbTag = _db.Tags.Include(t => t.Alarms)
+                        .FirstOrDefault(t => t.Id == tagId);
+                    
+                    if (dbTag == null)
                     {
-                        var dbTag = context.Tags.Include(t => t.Alarms)
-                            .FirstOrDefault(t => t.Id == tagId);
-                        
-                        if (dbTag == null)
-                        {
-                            throw new InvalidOperationException($"Tag {tagId} not found");
-                        }
-
-                        if (!dbTag.IsAnalogInputTag())
-                        {
-                            throw new InvalidOperationException("Alarms can only be added to AI tags");
-                        }
-
-                        alarm.TagId = tagId;
-                        context.Alarms.Add(alarm);
-                        context.SaveChanges();
-                        
-                        Console.WriteLine($"Alarm {alarm.Id} added to tag {tagId} in database");
+                        throw new InvalidOperationException($"Tag {tagId} not found");
                     }
+
+                    if (!dbTag.IsAnalogInputTag())
+                    {
+                        throw new InvalidOperationException("Alarms can only be added to AI tags");
+                    }
+
+                    alarm.TagId = tagId;
+                    _db.Alarms.Add(alarm);
+                    _db.SaveChanges();
+                    
+                    Console.WriteLine($"Alarm {alarm.Id} added to tag {tagId} in database");
 
                     // Update in-memory tag
                     var memoryTag = tags.FirstOrDefault(t => t.Id == tagId);
@@ -245,15 +239,12 @@ namespace DataConcentrator
                 try
                 {
                     // Remove from database
-                    using (var context = new ContextClass())
+                    var alarm = _db.Alarms.FirstOrDefault(a => a.Id == alarmId && a.TagId == tagId);
+                    if (alarm != null)
                     {
-                        var alarm = context.Alarms.FirstOrDefault(a => a.Id == alarmId && a.TagId == tagId);
-                        if (alarm != null)
-                        {
-                            context.Alarms.Remove(alarm);
-                            context.SaveChanges();
-                            Console.WriteLine($"Alarm {alarmId} removed from database");
-                        }
+                        _db.Alarms.Remove(alarm);
+                        _db.SaveChanges();
+                        Console.WriteLine($"Alarm {alarmId} removed from database");
                     }
 
                     // Remove from in-memory tag
@@ -294,15 +285,12 @@ namespace DataConcentrator
                 try
                 {
                     // Update in database first
-                    using (var context = new ContextClass())
+                    var dbTag = _db.Tags.FirstOrDefault(t => t.Id == tagId);
+                    if (dbTag != null)
                     {
-                        var dbTag = context.Tags.FirstOrDefault(t => t.Id == tagId);
-                        if (dbTag != null)
-                        {
-                            dbTag.OnOffScan = enable;
-                            context.SaveChanges();
-                            Console.WriteLine($"Tag {tagId} scan state updated in database: {enable}");
-                        }
+                        dbTag.OnOffScan = enable;
+                        _db.SaveChanges();
+                        Console.WriteLine($"Tag {tagId} scan state updated in database: {enable}");
                     }
 
                     // Update in memory
@@ -330,13 +318,13 @@ namespace DataConcentrator
                 }
             }
         }
-        public void Start(PLCSimulator.PLCSimulatorManager plcSimulator)
+        
+        public void Start()
         {
             if (isRunning)
                 return;
 
-            this.plcSimulator = plcSimulator ?? throw new ArgumentNullException(nameof(plcSimulator));
-            plcSimulator.StartPLCSimulator();
+            _plc.StartPLCSimulator();
 
             isRunning = true;
 
@@ -347,6 +335,7 @@ namespace DataConcentrator
 
             Console.WriteLine("DataCollector started with individual timers");
         }
+        
         private double ReadTagValue(Tag tag)
         {
             switch (tag.Type)
@@ -359,15 +348,16 @@ namespace DataConcentrator
                    throw new InvalidOperationException($"Cannot read value for tag type {tag.Type}");
             }
         }
+        
         private string GetTagAddress(Tag tag)
         {
             // Now IOAddress is already a string, so we can use it directly
             // or format it if needed
             return tag.IOAddress.StartsWith("ADDR") ? tag.IOAddress : $"ADDR{tag.IOAddress}";
         }
+        
         private void StartAllTagTimers()
         {
-
             lock (locker)
             {
                 foreach (var tag in tags.Where(t => ShouldScanTag(t)))
@@ -378,6 +368,7 @@ namespace DataConcentrator
 
             Console.WriteLine($"Started {tagTimers.Count} tag timers");
         }
+        
         private void StartTimerForTag(Tag tag)
         {
             if (tagTimers.ContainsKey(tag.Id))
@@ -404,6 +395,7 @@ namespace DataConcentrator
             // Skeniramo samo input tagove (DI, AI) koji imaju OnOffScan = true
             return tag.IsInputTag() && tag.OnOffScan == true;
         }
+        
         private void ScanSingleTag(Tag tag)
         {
             // Proveri da li sistem još uvek radi i da li tag treba skenirati
@@ -417,12 +409,15 @@ namespace DataConcentrator
 
                 // Obradi vrednost (proveri alarme, ispiši, sačuvaj u bazu)
                 ProcessTagValue(tag, currentValue);
+                ValuesUpdated?.Invoke(this, EventArgs.Empty);
+
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error scanning tag {tag.Id}: {ex.Message}");
             }
         }
+        
         public void Stop()
         {
             if (!isRunning)
@@ -452,6 +447,7 @@ namespace DataConcentrator
 
             Console.WriteLine($"Stopped all tag timers");
         }
+        
         // Updated ProcessTagValue method to persist current values
         private void ProcessTagValue(Tag tag, double currentValue)
         {
@@ -478,6 +474,12 @@ namespace DataConcentrator
                     {
                         Console.WriteLine($"   - {alarm.Id}: {alarm.Message}");
                         SaveActivatedAlarm(alarm, tag.Id);
+                        var newActiveAlarm = new ActivatedAlarm 
+                        {
+                            AlarmTime = DateTime.Now,
+                            Id = tag.Id,
+                            Message = alarm.Message
+                        };
                     }
                 }
             }
@@ -487,14 +489,12 @@ namespace DataConcentrator
         {
             try
             {
-                using (var context = new ContextClass())
-                {
-                    var activatedAlarm = new ActivatedAlarm(alarm, tagId);
-                    context.ActivatedAlarms.Add(activatedAlarm);
-                    context.SaveChanges();
+                var activatedAlarm = new ActivatedAlarm(alarm, tagId);
+                _activeAlarms.Add(activatedAlarm);
+                _db.ActivatedAlarms.Add(activatedAlarm);
+                _db.SaveChanges();
 
-                    Console.WriteLine($"Alarm {alarm.Id} saved to database");
-                }
+                Console.WriteLine($"Alarm {alarm.Id} saved to database");
             }
             catch (Exception ex)
             {
@@ -584,14 +584,11 @@ namespace DataConcentrator
         {
             try
             {
-                using (var context = new ContextClass())
+                var dbTag = _db.Tags.FirstOrDefault(t => t.Id == tag.Id);
+                if (dbTag != null)
                 {
-                    var dbTag = context.Tags.FirstOrDefault(t => t.Id == tag.Id);
-                    if (dbTag != null)
-                    {
-                        dbTag.CurrentValue = currentValue;
-                        context.SaveChanges();
-                    }
+                    dbTag.CurrentValue = currentValue;
+                    _db.SaveChanges();
                 }
             }
             catch (Exception ex)
@@ -599,6 +596,5 @@ namespace DataConcentrator
                 Console.WriteLine($"Error saving current value for {tag.Id}: {ex.Message}");
             }
         }
-
     }
 }

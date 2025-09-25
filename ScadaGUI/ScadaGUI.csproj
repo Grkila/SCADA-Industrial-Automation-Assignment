@@ -66,10 +66,6 @@
       <SubType>Designer</SubType>
     </ApplicationDefinition>
     <Compile Include="Converters\BooleanToVisibilityConverter.cs" />
-    <Compile Include="Models\Alarm.cs" />
-    <Compile Include="Models\Tag.cs" />
-    <Compile Include="Services\MockDatabaseService.cs" />
-    <Compile Include="Services\MockDataConcentratorService.cs" />
     <Compile Include="Services\RelayCommand.cs" />
     <Compile Include="Services\ReportService.cs" />
     <Compile Include="ViewModels\AlarmHistoryViewModel.cs" />

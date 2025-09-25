@@ -16,13 +16,13 @@
                   AutoGenerateColumns="False" CanUserAddRows="False"
                   BeginningEdit="DataGrid_BeginningEdit">
             <DataGrid.Columns>
-                <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" IsReadOnly="True" />
+                <DataGridTextColumn Header="Name" Binding="{Binding Id}" Width="*" IsReadOnly="True" />
                 <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="Auto" IsReadOnly="True" />
                 <DataGridTextColumn Header="IO Address" Binding="{Binding IOAddress}" Width="Auto" />
                 <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="2*" />
                 <DataGridTextColumn Header="Units" Binding="{Binding Units}" Width="Auto" />
                 <DataGridTextColumn Header="ScanTime" Binding="{Binding ScanTime}" Width="Auto" />
-                <DataGridCheckBoxColumn Header="Scanning On" Binding="{Binding IsScanning}" Width="Auto" />
+                <DataGridCheckBoxColumn Header="Scanning On" Binding="{Binding OnOffScan}" Width="Auto" />
                 <DataGridTextColumn Header="Low Limit" Binding="{Binding LowLimit}" Width="Auto" />
                 <DataGridTextColumn Header="High Limit" Binding="{Binding HighLimit}" Width="Auto" />
             </DataGrid.Columns>
@@ -49,7 +49,7 @@
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <Label Grid.Row="0" Grid.Column="0" Content="Name:" VerticalAlignment="Center" Margin="5"/>
-                    <TextBox Grid.Row="0" Grid.Column="1" Margin="5" Text="{Binding NewTag.Name}" />
+                    <TextBox Grid.Row="0" Grid.Column="1" Margin="5" Text="{Binding NewTag.Id}" />
                     <Label Grid.Row="0" Grid.Column="2" Content="Type:" VerticalAlignment="Center" Margin="15,5,5,5"/>
                     <ComboBox Grid.Row="0" Grid.Column="3" Margin="5" 
                               ItemsSource="{Binding TagTypes}" 
@@ -72,7 +72,7 @@
                     <StackPanel Orientation="Horizontal" Visibility="{Binding InputFieldsVisibility}">
                         <Label Content="Scan Time (ms):" VerticalAlignment="Center" Margin="5"/>
                         <TextBox Width="80" Margin="0,5,5,5" Text="{Binding NewTag.ScanTime}" />
-                        <CheckBox Content="Scanning On" VerticalAlignment="Center" Margin="15,5,5,5" IsChecked="{Binding NewTag.IsScanning}"/>
+                        <CheckBox Content="Scanning On" VerticalAlignment="Center" Margin="15,5,5,5" IsChecked="{Binding NewTag.OnOffScan}"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Visibility="{Binding OutputFieldsVisibility}">
                         <Label Content="Initial Value:" VerticalAlignment="Center" Margin="5"/>

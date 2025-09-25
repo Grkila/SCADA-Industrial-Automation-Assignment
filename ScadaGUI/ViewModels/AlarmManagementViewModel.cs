@@ -1,26 +1,25 @@
 ﻿using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows.Input;
-using ScadaGUI.Models;
 using ScadaGUI.Services;
-
+using DataConcentrator;
 namespace ScadaGUI.ViewModels
 {
     public class AlarmManagementViewModel : BaseViewModel
     {
-        private readonly MockDatabaseService _db;
+        private readonly ContextClass _db;
         private Alarm _newAlarm = new Alarm();
         private Alarm _selectedAlarm;
 
-        private AlarmType? _selectedAlarmType;
-        public AlarmType? SelectedAlarmType
+        private AlarmTrigger? _selectedAlarmTrigger;
+        public AlarmTrigger? SelectedAlarmTrigger
         {
-            get => _selectedAlarmType;
-            set { _selectedAlarmType = value; OnPropertyChanged(); CommandManager.InvalidateRequerySuggested(); }
+            get => _selectedAlarmTrigger;
+            set { _selectedAlarmTrigger = value; OnPropertyChanged(); CommandManager.InvalidateRequerySuggested(); }
         }
 
         public ObservableCollection<Alarm> Alarms { get; set; }
-        public string[] AlarmTypes => System.Enum.GetNames(typeof(AlarmType));
+        public string[] AlarmTypes => System.Enum.GetNames(typeof(AlarmTrigger));
         public ObservableCollection<string> AvailableAiTags { get; set; }
 
         public ICommand AddAlarmCommand { get; }
@@ -38,14 +37,14 @@ namespace ScadaGUI.ViewModels
             set { _newAlarm = value; OnPropertyChanged(); }
         }
 
-        public AlarmManagementViewModel(MockDatabaseService db)
+        public AlarmManagementViewModel(ContextClass db)
         {
             _db = db;
             Alarms = new ObservableCollection<Alarm>(_db.GetAlarms());
 
             var aiTagNames = _db.GetTags()
                                 .Where(tag => tag.Type == TagType.AI)
-                                .Select(tag => tag.Name);
+                                .Select(tag => tag.Id);
             AvailableAiTags = new ObservableCollection<string>(aiTagNames);
 
             AddAlarmCommand = new RelayCommand(_ => AddAlarm(), _ => CanAddAlarm());
@@ -54,20 +53,20 @@ namespace ScadaGUI.ViewModels
 
         private bool CanAddAlarm()
         {
-            return !string.IsNullOrEmpty(NewAlarm.TagName) && _selectedAlarmType.HasValue;
+            return !string.IsNullOrEmpty(NewAlarm.TagId) && _selectedAlarmTrigger.HasValue;
         }
 
         private void AddAlarm()
         {
             // Preuzimamo izabranu vrednost iz ComboBox-a
-            NewAlarm.Type = _selectedAlarmType.Value;
+            NewAlarm.Trigger = _selectedAlarmTrigger.Value;
 
             _db.AddAlarm(NewAlarm);
             Alarms.Add(NewAlarm);
 
             // Resetujemo formu
             NewAlarm = new Alarm();
-            SelectedAlarmType = null; // Resetujemo ComboBox na "ništa selektovano"
+            SelectedAlarmTrigger = null; // Resetujemo ComboBox na "ništa selektovano"
         }
 
         private void DeleteAlarm()

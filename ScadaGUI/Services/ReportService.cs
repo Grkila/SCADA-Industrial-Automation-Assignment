@@ -1,36 +1,39 @@
 ﻿using System.IO;
 using System.Linq;
-using ScadaGUI.Models;
-
+using DataConcentrator;
 namespace ScadaGUI.Services
 {
     public class ReportService
     {
-        private readonly MockDatabaseService _db;
+        private readonly ContextClass _db;
 
-        public ReportService(MockDatabaseService db)
+        public ReportService(ContextClass db)
         {
             _db = db;
         }
 
-        public string GenerateReport()
+public string GenerateReport()
+{
+    var path = Path.Combine(Directory.GetCurrentDirectory(), "Report.txt");
+    using (var context = new ContextClass()) // Instantiating the DbContext
+    {
+        using (var writer = new StreamWriter(path))
         {
-            var path = Path.Combine(Directory.GetCurrentDirectory(), "Report.txt");
-            using (var writer = new StreamWriter(path))
+            // Accessing the Tags DbSet from the ContextClass and applying the filter
+            foreach (var tag in context.Tags.Where(t => t.Type == TagType.AI))
             {
-                foreach (var tag in _db.GetTags().Where(t => t.Type == TagType.AI))
+                if (tag.LowLimit.HasValue && tag.HighLimit.HasValue && tag.InitialValue.HasValue)
                 {
-                    if (tag.LowLimit.HasValue && tag.HighLimit.HasValue && tag.InitialValue.HasValue)
+                    var avg = (tag.HighLimit.Value + tag.LowLimit.Value) / 2;
+                    if (tag.InitialValue.Value >= avg - 5 && tag.InitialValue.Value <= avg + 5)
                     {
-                        var avg = (tag.HighLimit.Value + tag.LowLimit.Value) / 2;
-                        if (tag.InitialValue.Value >= avg - 5 && tag.InitialValue.Value <= avg + 5)
-                        {
-                            writer.WriteLine($"{tag.Name}: {tag.InitialValue} {tag.Units}");
-                        }
+                        writer.WriteLine($"{tag.Id}: {tag.InitialValue} {tag.Units}");
                     }
                 }
             }
-            return path;
         }
+    }
+    return path;
+}
     }
 }

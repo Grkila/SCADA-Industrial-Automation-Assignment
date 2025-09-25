@@ -1,6 +1,6 @@
-﻿using ScadaGUI.Models;
+﻿
 using System.Windows.Controls;
-
+using DataConcentrator;
 namespace ScadaGUI.Views
 {
     public partial class TagManagementView : UserControl

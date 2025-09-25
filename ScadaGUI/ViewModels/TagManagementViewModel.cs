@@ -2,14 +2,13 @@
 using System.Linq;
 using System.Windows;
 using System.Windows.Input;
-using ScadaGUI.Models;
 using ScadaGUI.Services;
-
+using DataConcentrator;
 namespace ScadaGUI.ViewModels
 {
     public class TagManagementViewModel : BaseViewModel
     {
-        private readonly MockDatabaseService _db;
+        private readonly ContextClass _db;
         private Tag _newTag = new Tag();
         private Tag _selectedTag;
         private string _errorMessage;
@@ -65,12 +64,12 @@ namespace ScadaGUI.ViewModels
         {
             if (NewTag.Type != newType)
             {
-                var name = NewTag.Name;
+                var id = NewTag.Id;
                 var description = NewTag.Description;
                 var ioAddress = NewTag.IOAddress;
 
-                NewTag = new Tag { Type = newType }; 
-                NewTag.Name = name;
+                NewTag = new Tag { Type = newType };
+                NewTag.Id = id;
                 NewTag.Description = description;
                 NewTag.IOAddress = ioAddress;
 
@@ -85,7 +84,7 @@ namespace ScadaGUI.ViewModels
         public Visibility InputFieldsVisibility => (SelectedTagTypeForComboBox == TagType.AI || SelectedTagTypeForComboBox == TagType.DI) ? Visibility.Visible : Visibility.Collapsed;
         public Visibility OutputFieldsVisibility => (SelectedTagTypeForComboBox == TagType.AO || SelectedTagTypeForComboBox == TagType.DO) ? Visibility.Visible : Visibility.Collapsed;
 
-        public TagManagementViewModel(MockDatabaseService db)
+        public TagManagementViewModel(ContextClass db)
         {
             _db = db;
             Tags = new ObservableCollection<Tag>(_db.GetTags());
@@ -98,7 +97,7 @@ namespace ScadaGUI.ViewModels
         private bool CanAddTag()
         {
             // Dugme "Add" je aktivno samo ako je uneto ime I ako je izabran tip taga
-            return !string.IsNullOrWhiteSpace(NewTag.Name) && _selectedTagTypeForComboBox.HasValue;
+            return !string.IsNullOrWhiteSpace(NewTag.Id) && _selectedTagTypeForComboBox.HasValue;
         }
 
         private void ResetForm()
@@ -117,15 +116,14 @@ namespace ScadaGUI.ViewModels
                 ErrorMessage = "Tag Name and Type are required.";
                 return;
             }
-            if (Tags.Any(t => t.Name == NewTag.Name)) { ErrorMessage = "Tag with that name already exists."; return; }
+            if (Tags.Any(t => t.Id == NewTag.Id)) { ErrorMessage = "Tag with that ID already exists."; return; }
 
-           
             NewTag.Type = _selectedTagTypeForComboBox.Value;
 
             _db.AddTag(NewTag);
 
             var tagToAdd = new Tag();
-            tagToAdd.Name = NewTag.Name;
+            tagToAdd.Id = NewTag.Id;
             tagToAdd.Description = NewTag.Description;
             tagToAdd.IOAddress = NewTag.IOAddress;
             tagToAdd.Type = NewTag.Type;
@@ -133,7 +131,7 @@ namespace ScadaGUI.ViewModels
             tagToAdd.HighLimit = NewTag.HighLimit;
             tagToAdd.Units = NewTag.Units;
             tagToAdd.ScanTime = NewTag.ScanTime;
-            tagToAdd.IsScanning = NewTag.IsScanning;
+            tagToAdd.OnOffScan = NewTag.OnOffScan;
             tagToAdd.InitialValue = NewTag.InitialValue;
             Tags.Add(tagToAdd);
 

@@ -41,7 +41,7 @@ namespace DataConcentrator
 
         // This is the property your application code will use - not mapped to database
         [NotMapped]
-        private Dictionary<string, object> _characteristics = new Dictionary<string, object>();
+        public Dictionary<string, object> _characteristics = new Dictionary<string, object>();
 
         // This is the backing property that EF maps to the database
         public string CharacteristicsJson
@@ -117,11 +117,11 @@ namespace DataConcentrator
         }
 
         // Helper metode za rad sa dictionary
-        private T GetCharacteristic<T>(string key)
+        public T GetCharacteristic<T>(string key)
         {
             return _characteristics.TryGetValue(key, out var value) ? (T)value : default(T);
         }
-        private void SetCharacteristic(string key, object value)
+        public void SetCharacteristic(string key, object value)
         {
             if (value == null)
             {

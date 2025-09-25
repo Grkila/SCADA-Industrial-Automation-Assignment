@@ -13,9 +13,9 @@
 
         <DataGrid Grid.Row="0" ItemsSource="{Binding Alarms}" AutoGenerateColumns="False" SelectedItem="{Binding SelectedAlarm}" IsReadOnly="True" CanUserAddRows="False">
             <DataGrid.Columns>
-                <DataGridTextColumn Header="Tag Name" Binding="{Binding TagName}" Width="*" />
-                <DataGridTextColumn Header="Limit" Binding="{Binding Limit}" Width="Auto" />
-                <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="Auto" />
+                <DataGridTextColumn Header="Tag Name" Binding="{Binding TagId}" Width="*" />
+                <DataGridTextColumn Header="Threshold" Binding="{Binding Threshold}" Width="Auto" />
+                <DataGridTextColumn Header="Trigger" Binding="{Binding Trigger}" Width="Auto" />
                 <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="2*" />
             </DataGrid.Columns>
         </DataGrid>
@@ -37,16 +37,16 @@
                     <Label Grid.Column="0" Content="Tag Name (AI only):" VerticalAlignment="Center" Margin="5"/>
                     <ComboBox Grid.Column="1" Margin="5" 
                               ItemsSource="{Binding AvailableAiTags}" 
-                              SelectedItem="{Binding NewAlarm.TagName}"/>
+                              SelectedItem="{Binding NewAlarm.TagId}"/>
                 </Grid>
 
                 <StackPanel Grid.Row="1" Orientation="Horizontal">
                     <Label Content="Alarm when value is:" VerticalAlignment="Center" Margin="5"/>
                     <ComboBox Width="100" Margin="0,5,5,5" 
                               ItemsSource="{Binding AlarmTypes}" 
-                              SelectedItem="{Binding SelectedAlarmType}" />
-                    <Label Content="Limit:" VerticalAlignment="Center" Margin="15,5,5,5"/>
-                    <TextBox Width="80" Margin="0,5,5,5" Text="{Binding NewAlarm.Limit}" />
+                              SelectedItem="{Binding SelectedAlarmTrigger}" />
+                    <Label Content="Threshold:" VerticalAlignment="Center" Margin="15,5,5,5"/>
+                    <TextBox Width="80" Margin="0,5,5,5" Text="{Binding NewAlarm.Threshold}" />
                 </StackPanel>
 
                 <Grid Grid.Row="2">

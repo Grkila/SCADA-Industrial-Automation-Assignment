@@ -2,20 +2,19 @@
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows.Input;
-using ScadaGUI.Models;
 using ScadaGUI.Services;
-
+using DataConcentrator;
 namespace ScadaGUI.ViewModels
 {
     public class MonitorViewModel : BaseViewModel
     {
-        private readonly MockDataConcentratorService _concentrator;
+        private readonly DataCollector _concentrator;
         private Tag _selectedTag;
         private string _valueToWrite;
         private bool _isOutputTagSelected;
 
         public ObservableCollection<Tag> MonitoredTags { get; set; }
-        public ObservableCollection<ActiveAlarm> ActiveAlarms { get; set; }
+        public ObservableCollection<ActivatedAlarm> ActiveAlarms { get; set; }
 
         public string ValueToWrite
         {
@@ -45,11 +44,11 @@ namespace ScadaGUI.ViewModels
             }
         }
 
-        public MonitorViewModel(MockDataConcentratorService concentrator)
+        public MonitorViewModel(DataCollector concentrator)
         {
             _concentrator = concentrator;
             MonitoredTags = new ObservableCollection<Tag>(_concentrator.GetTags());
-            ActiveAlarms = new ObservableCollection<ActiveAlarm>();
+            ActiveAlarms = new ObservableCollection<ActivatedAlarm>();
             _concentrator.ValuesUpdated += Concentrator_ValuesUpdated;
 
             WriteToTagCommand = new RelayCommand(_ => WriteTagValue(), _ => CanWriteTagValue());
@@ -63,7 +62,7 @@ namespace ScadaGUI.ViewModels
         private void WriteTagValue()
         {
 
-            System.Diagnostics.Debug.WriteLine($"FRONTEND: Zahtev za upis vrednosti '{ValueToWrite}' na tag '{SelectedTag.Name}'");
+            System.Diagnostics.Debug.WriteLine($"FRONTEND: Zahtev za upis vrednosti '{ValueToWrite}' na tag '{SelectedTag.Id}'");
             ValueToWrite = string.Empty;
         }
 
@@ -74,7 +73,7 @@ namespace ScadaGUI.ViewModels
                 var updatedTags = _concentrator.GetTags();
                 foreach (var updatedTag in updatedTags)
                 {
-                    var tagToUpdate = MonitoredTags.FirstOrDefault(t => t.Name == updatedTag.Name);
+                    var tagToUpdate = MonitoredTags.FirstOrDefault(t => t.Id == updatedTag.Id);
                     if (tagToUpdate != null)
                     {
                         // Ažuriramo 'CurrentValue', što automatski osvežava prikaz u tabeli
@@ -84,12 +83,12 @@ namespace ScadaGUI.ViewModels
 
                 //AŽURIRANJE ALARMA 
                 var currentAlarms = _concentrator.GetActiveAlarms().ToList();
-                var alarmsToRemove = ActiveAlarms.Where(a => !currentAlarms.Any(ca => ca.Time == a.Time)).ToList();
+                var alarmsToRemove = ActiveAlarms.Where(a => !currentAlarms.Any(ca => ca.AlarmTime == a.AlarmTime)).ToList();
                 foreach (var alarm in alarmsToRemove) ActiveAlarms.Remove(alarm);
 
                 foreach (var alarm in currentAlarms)
                 {
-                    if (!ActiveAlarms.Any(a => a.Time == alarm.Time && a.TagName == alarm.TagName))
+                    if (!ActiveAlarms.Any(a => a.AlarmTime == alarm.AlarmTime && a.TagName == alarm.TagName))
                     {
                         ActiveAlarms.Add(alarm);
                     }
@@ -97,6 +96,6 @@ namespace ScadaGUI.ViewModels
             });
         }
 
-        public MockDataConcentratorService GetDataConcentrator() => _concentrator;
+        public DataCollector GetDataConcentrator() => _concentrator;
     }
 }
