@@ -58,7 +58,7 @@ namespace DataConcentrator
                 {
                     foreach (var tag in GetTags())
                     {
-                        if (tag.IsScanning == true && tag.IsInputTag())
+                        if (tag.IsScanning != false && tag.IsInputTag()) // Scan if IsScanning is TRUE or NULL
                         {
                             try
                             {

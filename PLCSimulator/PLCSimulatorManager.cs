@@ -38,13 +38,15 @@ namespace PLCSimulator
             addressValues.Add("ADDR007", 0);
             addressValues.Add("ADDR008", 0);
 
-            // DI
-            // TODO: dodati jos nekoliko adresa za DI (recimo po 4 za svaku vrstu tagova)
+            // DI - Let's add more!
             addressValues.Add("ADDR009", 0);
+            addressValues.Add("ADDR011", 0); // New DI
+            addressValues.Add("ADDR012", 0); // New DI
 
-            // DO
-            // TODO: dodati jos nekoliko adresa za DI (recimo po 4 za svaku vrstu tagova)
+            // DO - Let's add more!
             addressValues.Add("ADDR010", 0);
+            addressValues.Add("ADDR013", 0); // New DO
+            addressValues.Add("ADDR014", 0); // New DO
         }
 
         public void StartPLCSimulator()
@@ -80,14 +82,11 @@ namespace PLCSimulator
 
                 lock (locker)
                 {
-                    if (addressValues["ADDR009"] == 0)
-                    {
-                        addressValues["ADDR009"] = 1;
-                    }
-                    else
-                    {
-                        addressValues["ADDR009"] = 0;
-                    }
+                    addressValues["ADDR009"] = addressValues["ADDR009"] == 0 ? 1 : 0;
+
+                    // Make the others do something interesting too
+                    addressValues["ADDR011"] = DateTime.Now.Second % 3 == 0 ? 1 : 0; // On for 1s, off for 2s
+                    addressValues["ADDR012"] = RandomNumberBetween(0, 1) > 0.5 ? 1 : 0; // Randomly on/off
                 }
             }
         }

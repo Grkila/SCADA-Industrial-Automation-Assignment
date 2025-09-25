@@ -3,8 +3,10 @@ using DataConcentrator;
 using ScadaGUI.Services;
 using System;
 using System.Collections.ObjectModel;
+using System.Globalization; // <-- ADD THIS
 using System.Linq;
 using System.Windows.Input;
+using System.Windows.Media; // <-- ADD THIS
 
 namespace ScadaGUI.ViewModels
 {
@@ -17,6 +19,22 @@ namespace ScadaGUI.ViewModels
 
         public ObservableCollection<Tag> MonitoredTags { get; set; }
         public ObservableCollection<ActiveAlarm> ActiveAlarms { get; set; }
+
+        // --- START: Properties for User Feedback ---
+        private string _statusMessage;
+        public string StatusMessage
+        {
+            get => _statusMessage;
+            set { _statusMessage = value; OnPropertyChanged(); }
+        }
+
+        private Brush _statusMessageColor;
+        public Brush StatusMessageColor
+        {
+            get => _statusMessageColor;
+            set { _statusMessageColor = value; OnPropertyChanged(); }
+        }
+        // --- END: Properties for User Feedback ---
 
         public string ValueToWrite
         {
@@ -41,50 +59,82 @@ namespace ScadaGUI.ViewModels
                 OnPropertyChanged();
                 IsOutputTagSelected = _selectedTag != null && (_selectedTag.Type == TagType.AO || _selectedTag.Type == TagType.DO);
                 ValueToWrite = string.Empty;
+                StatusMessage = string.Empty; // Clear status when selection changes
             }
         }
 
         public MonitorViewModel(DataCollector concentrator)
         {
             _concentrator = concentrator;
-
-            // This is correct. You are getting a reference to the "live" list of tags
-            // that the DataCollector is actively updating.
             MonitoredTags = new ObservableCollection<Tag>(_concentrator.GetTags());
-
             ActiveAlarms = new ObservableCollection<ActiveAlarm>();
-
-            // Subscribe to the event.
             _concentrator.ValuesUpdated += Concentrator_ValuesUpdated;
-
             WriteToTagCommand = new RelayCommand(_ => WriteTagValue(), _ => CanWriteTagValue());
         }
 
+        // --- MODIFIED: CanWriteTagValue clears old messages ---
         private bool CanWriteTagValue()
         {
-            return IsOutputTagSelected && !string.IsNullOrWhiteSpace(ValueToWrite);
+            // As soon as the user can write, clear any old status messages
+            if (IsOutputTagSelected && !string.IsNullOrWhiteSpace(ValueToWrite))
+            {
+                StatusMessage = string.Empty;
+                return true;
+            }
+            return false;
         }
 
+        // --- REPLACED: The old WriteTagValue method is replaced with this ---
         private void WriteTagValue()
         {
-            System.Diagnostics.Debug.WriteLine($"FRONTEND: Zahtev za upis vrednosti '{ValueToWrite}' na tag '{SelectedTag.Name}'");
-            ValueToWrite = string.Empty;
+            if (SelectedTag == null)
+            {
+                StatusMessage = "Error: No tag selected.";
+                StatusMessageColor = Brushes.Red;
+                return;
+            }
+
+            if (!double.TryParse(ValueToWrite, NumberStyles.Any, CultureInfo.InvariantCulture, out double value))
+            {
+                StatusMessage = "Error: Invalid number format.";
+                StatusMessageColor = Brushes.Red;
+                return;
+            }
+
+            if (SelectedTag.Type == TagType.DO && value != 0 && value != 1)
+            {
+                StatusMessage = "Error: Digital Output (DO) tags only accept 0 or 1.";
+                StatusMessageColor = Brushes.Red;
+                return;
+            }
+
+            try
+            {
+                // This is the crucial call to the background service
+                _concentrator.WriteTagValue(SelectedTag.Name, value);
+
+                StatusMessage = $"Successfully wrote '{value}' to tag '{SelectedTag.Name}'.";
+                StatusMessageColor = Brushes.Green;
+                ValueToWrite = string.Empty;
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Error: {ex.Message}";
+                StatusMessageColor = Brushes.Red;
+                System.Diagnostics.Debug.WriteLine($"[WRITE FAILED]: {ex.Message}");
+            }
         }
 
-        // *** THIS IS THE SIMPLIFIED METHOD ***
         private void Concentrator_ValuesUpdated(object sender, EventArgs e)
         {
-            // The UI thread is required for updating collections like ActiveAlarms.
             App.Current.Dispatcher.Invoke(() =>
             {
                 var currentAlarms = _concentrator.GetActiveAlarms().ToList();
-var alarmsToRemove = ActiveAlarms.Where(a => !currentAlarms.Any(ca => ca.Time == a.Time && ca.TagName == a.TagName)).ToList();
+                var alarmsToRemove = ActiveAlarms.Where(a => !currentAlarms.Any(ca => ca.Time == a.Time && ca.TagName == a.TagName)).ToList();
                 foreach (var alarm in alarmsToRemove)
                 {
                     ActiveAlarms.Remove(alarm);
                 }
-
-                // Add new alarms
                 foreach (var alarm in currentAlarms)
                 {
                     if (!ActiveAlarms.Any(a => a.Time == alarm.Time && a.TagName == alarm.TagName))
@@ -96,7 +146,6 @@ var alarmsToRemove = ActiveAlarms.Where(a => !currentAlarms.Any(ca => ca.Time ==
         }
         public void HandleTagAdded(Tag tag)
         {
-            // Ensure UI updates happen on the main thread
             App.Current.Dispatcher.Invoke(() => {
                 if (!MonitoredTags.Any(t => t.Name == tag.Name))
                 {
@@ -105,10 +154,8 @@ var alarmsToRemove = ActiveAlarms.Where(a => !currentAlarms.Any(ca => ca.Time ==
             });
         }
 
-        // Add this new method to handle the TagRemoved event
         public void HandleTagRemoved(Tag tag)
         {
-            // Ensure UI updates happen on the main thread
             App.Current.Dispatcher.Invoke(() => {
                 var tagToRemove = MonitoredTags.FirstOrDefault(t => t.Name == tag.Name);
                 if (tagToRemove != null)

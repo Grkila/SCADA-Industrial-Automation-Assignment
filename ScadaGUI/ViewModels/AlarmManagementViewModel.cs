@@ -56,9 +56,10 @@ namespace ScadaGUI.ViewModels
 
         private bool CanAddAlarm()
         {
-            return !string.IsNullOrEmpty(NewAlarm.TagName) && _selectedAlarmType.HasValue;
+            return !string.IsNullOrEmpty(NewAlarm.TagName) &&
+                   _selectedAlarmType.HasValue &&
+                   !string.IsNullOrWhiteSpace(NewAlarm.Message); // <-- Add this check
         }
-
         private void AddAlarm()
         {
             // Preuzimamo izabranu vrednost iz ComboBox-a
