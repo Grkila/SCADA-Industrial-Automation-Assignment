@@ -120,6 +120,11 @@ namespace PLCSimulator
             if (addressValues.ContainsKey(address))
             {
                 addressValues[address] = value;
+                System.Diagnostics.Debug.WriteLine($"SetAnalogValue - Address: {address}, Value: {value}");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"SetAnalogValue - Address not found: {address}");
             }
         }
 
@@ -128,6 +133,11 @@ namespace PLCSimulator
             if (addressValues.ContainsKey(address))
             {
                 addressValues[address] = value;
+                System.Diagnostics.Debug.WriteLine($"SetDigitalValue - Address: {address}, Value: {value}");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"SetDigitalValue - Address not found: {address}");
             }
         }
 
