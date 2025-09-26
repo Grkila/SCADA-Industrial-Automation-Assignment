@@ -1,6 +1,7 @@
-﻿using System.IO;
+﻿using DataConcentrator;
+using System;
+using System.IO;
 using System.Linq;
-using DataConcentrator;
 namespace ScadaGUI.Services
 {
     public class ReportService
@@ -14,17 +15,43 @@ namespace ScadaGUI.Services
 
         public string GenerateReport()
         {
-            var path = Path.Combine(Directory.GetCurrentDirectory(), "Report.txt");
+            var path = Path.Combine(Directory.GetCurrentDirectory(), $"Report_{DateTime.Now:yyyyMMdd_HHmmss}.txt");
             using (var writer = new StreamWriter(path))
             {
+                writer.WriteLine($"SCADA Report - Generated on {DateTime.Now}");
+                writer.WriteLine("Values of analog inputs that were in the ideal range ((high+low)/2 ±5)");
+                writer.WriteLine("=====================================================================");
+
+                // Prolazimo samo kroz Analog Input (AI) tagove
                 foreach (var tag in _db.GetTags().Where(t => t.Type == TagType.AI))
                 {
-                    if (tag.LowLimit.HasValue && tag.HighLimit.HasValue && tag.InitialValue.HasValue)
+                    if (tag.LowLimit.HasValue && tag.HighLimit.HasValue)
                     {
-                        var avg = (tag.HighLimit.Value + tag.LowLimit.Value) / 2;
-                        if (tag.InitialValue.Value >= avg - 5 && tag.InitialValue.Value <= avg + 5)
+                        // Izračunavamo ciljni opseg kao i pre
+                        double middleValue = (tag.HighLimit.Value + tag.LowLimit.Value) / 2.0;
+                        double lowerBound = middleValue - 5.0;
+                        double upperBound = middleValue + 5.0;
+
+                        writer.WriteLine($"\n--- Tag: {tag.Name} (Target Range: {lowerBound:F2} - {upperBound:F2} {tag.Units}) ---");
+
+                        // Pretražujemo istoriju za vrednosti unutar ciljnog opsega
+                        var historicalValuesInRange = _db.TagValueHistory
+                            .Where(h => h.TagName == tag.Name &&
+                                        h.Value >= lowerBound &&
+                                        h.Value <= upperBound)
+                            .OrderBy(h => h.Timestamp) // Sortiramo po vremenu
+                            .ToList();
+
+                        if (historicalValuesInRange.Any())
                         {
-                            writer.WriteLine($"{tag.Name}: {tag.InitialValue} {tag.Units}");
+                            foreach (var history in historicalValuesInRange)
+                            {
+                                writer.WriteLine($"{history.Timestamp:dd.MM.yyyy HH:mm:ss} -> Value: {history.Value:F2} {tag.Units}");
+                            }
+                        }
+                        else
+                        {
+                            writer.WriteLine("No recorded values found in the target range.");
                         }
                     }
                 }
