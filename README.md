@@ -1,6 +1,31 @@
 # Comprehensive SCADA System Project
 
-This repository contains a fully-featured SCADA (Supervisory Control and Data Acquisition) system developed in C# with the .NET Framework. The project provides a robust simulation of industrial process monitoring and control, featuring a WPF graphical user interface, a central data processing engine, and a simulated PLC for data generation. The system's entire configuration and operational history are persisted in a SQL Server database using Entity Framework.
+A fully-featured SCADA (Supervisory Control and Data Acquisition) system developed in C# with .NET Framework, providing industrial process monitoring and control capabilities through a modern WPF interface.
+
+## Overview
+
+This project simulates a complete industrial SCADA environment with real-time data acquisition, alarm management, historical reporting, and process control capabilities. The system features a multi-layered architecture with a WPF graphical user interface, central data processing engine, and simulated PLC for realistic data generation.
+
+### Key Highlights
+- **Modern WPF Interface**: Intuitive tabbed interface with real-time data visualization
+- **Real-Time Monitoring**: Live process data with manual control capabilities  
+- **Comprehensive Alarm System**: Configurable alarms with historical tracking
+- **Advanced Reporting**: Automated report generation with performance analysis
+- **Robust Data Management**: SQL Server database with Entity Framework integration
+- **Automated Testing**: Comprehensive test suite ensuring system reliability
+
+## Table of Contents
+
+- [System Architecture](#system-architecture)
+- [Application Interface](#application-interface)
+  - [Tags Management Tab](#tags-management-tab)
+  - [Alarm Management Tab](#alarm-management-tab)
+  - [Real-Time Monitoring Tab](#real-time-monitoring-tab)
+  - [Alarm History Tab](#alarm-history-tab)
+  - [Reports Tab](#reports-tab)
+- [Core System Features](#core-system-features)
+- [Technology Stack](#technology-stack)
+- [Quick Start](#quick-start)
 
 ## System Architecture
 
@@ -22,64 +47,152 @@ The application is built on a decoupled, multi-project architecture designed for
     2.  `Alarms`: Stores the definitions for all alarms, linked to specific tags.
     3.  `ActivatedAlarms`: A historical log of every alarm that has been triggered, including its message and a timestamp.
 
-## Features in Detail
+## Application Interface
 
-### 1. Tag Management
+The SCADA system features a modern WPF interface with five main tabs, each providing specific functionality for industrial process monitoring and control.
+
+### Tags Management Tab
+![Tags Management](Screenshots/Tags-tab.png)
+
+The Tags tab is the foundation of the SCADA system, allowing users to configure and manage all data points in the industrial process.
+
+**Key Features:**
+- **Tag Types**: Support for four distinct tag types:
+  - **DI (Digital Input)**: Binary state from field devices (switches, sensors)
+  - **DO (Digital Output)**: Binary commands to field devices (lights, relays)
+  - **AI (Analog Input)**: Continuous values from sensors (temperature, pressure, flow)
+  - **AO (Analog Output)**: Continuous commands to actuators (valves, motors)
+
+- **Smart Configuration**: The interface dynamically shows only relevant fields based on tag type:
+  - **Common Properties**: Name, Description, I/O Address
+  - **Input Properties**: Scan Time (ms), On/Off Scan toggle
+  - **Analog Properties**: Low/High Limits, Units (°C, %, PSI, etc.)
+  - **Output Properties**: Initial Value for system startup
+
+- **Data Validation**: Comprehensive input validation ensures data integrity and prevents configuration errors
+
+### Alarm Management Tab
+![Alarm Management](Screenshots/Alarms-tab.png)
+
+The Alarms tab provides comprehensive alarm configuration and management capabilities.
+
+**Key Features:**
+- **Alarm Configuration**: Create and manage alarms for Analog Input tags
+- **Trigger Conditions**: Set alarms to trigger when values go Above or Below specified limits
+- **Custom Messages**: Define descriptive alarm messages for each condition
+- **Alarm Association**: Link alarms to specific AI tags for targeted monitoring
+
+### Real-Time Monitoring Tab
+![Real-Time Monitoring](Screenshots/Monitor-tab.png)
+
+The Monitor tab serves as the main operational dashboard, providing real-time visibility into the industrial process.
+
+**Key Features:**
+- **Live Data Display**: Real-time grid showing all configured tags with current values
+- **Manual Control**: Direct control of output tags (AO/DO) with value input validation
+- **Active Alarms Panel**: Dedicated section displaying currently active alarms
+- **Process Overview**: Complete visibility into system status and performance
+
+### Alarm History Tab
+![Alarm History](Screenshots/Alarm_history-tab.png)
+
+The Alarm History tab provides comprehensive historical analysis of all alarm events.
+
+**Key Features:**
+- **Historical Records**: Complete log of all triggered alarms with timestamps
+- **Event Details**: Detailed information including tag names, alarm messages, and trigger times
+- **Data Analysis**: Historical patterns and trends for process optimization
+- **Audit Trail**: Complete record for compliance and troubleshooting
+
+### Reports Tab
+![Reports Generation](Screenshots/Report-tab.png)
+
+The Reports tab enables generation of detailed analytical reports for process optimization.
+
+**Key Features:**
+- **One-Click Generation**: Simple button interface for report creation
+- **Performance Analysis**: Identifies periods of optimal operation within defined ranges
+- **Ideal Range Calculation**: Uses formula `(high_limit + low_limit) / 2 ±5` for optimal performance detection
+- **Timestamped Output**: Reports saved with unique filenames for easy organization
+
+### Generated Report Example
+![Generated Report](Screenshots/Generated-report_example.png)
+
+Example of the generated report showing historical data analysis and optimal performance periods.
+
+## Core System Features
+
+### 1. Tag Management System
 
 The core of the SCADA system is the ability to manage "tags," which represent individual data points from the industrial process.
 
-*   **Tag Types**: The system supports four distinct types of tags:
-    *   **DI (Digital Input)**: Represents a binary state from the field, such as a switch being on or off.
-    *   **DO (Digital Output)**: Allows the system to send a binary command, like turning a light on or off.
-    *   **AI (Analog Input)**: Represents a continuous value from a sensor, such as temperature or pressure.
-    *   **AO (Analog Output)**: Allows the system to send a continuous value, like setting a valve's position.
+**Tag Types and Properties:**
+- **Digital Input (DI)**: Binary state from field devices (switches, sensors)
+- **Digital Output (DO)**: Binary commands to field devices (lights, relays)  
+- **Analog Input (AI)**: Continuous values from sensors (temperature, pressure, flow)
+- **Analog Output (AO)**: Continuous commands to actuators (valves, motors)
 
-*   **Tag Properties**: Each tag is defined by a set of properties. The user interface intelligently displays only the fields relevant to the selected tag type.
-    *   **Common Properties**: `Name` (ID), `Description`, `I/O Address`.
-    *   **Input-Only Properties**: `Scan Time` (in milliseconds) and a toggle for `On/Off Scan`.
-    *   **Analog-Only Properties**: `Low Limit`, `High Limit`, and `Units` (e.g., °C, %, PSI).
-    *   **Output-Only Properties**: `Initial Value` to be set upon system start.
+**Configuration Features:**
+- Dynamic UI that shows only relevant fields based on tag type
+- Comprehensive input validation at both UI and data model levels
+- Support for units, limits, scan times, and initial values
+- Real-time validation prevents invalid configurations
 
-*   **Input Validation**: The system enforces strict validation rules at both the UI and data model levels to ensure data integrity. For example, a user cannot assign units to a digital tag or set a scan time for an output tag. Numerical fields also validate for correct formatting.
+### 2. Alarm Management System
 
-### 2. Alarm Management
+Robust alarm system for critical process condition notification.
 
-The system provides a robust mechanism for notifying users of critical process conditions.
+**Alarm Configuration:**
+- Create alarms for any Analog Input tag
+- Set trigger conditions (Above/Below thresholds)
+- Custom alarm messages for each condition
+- Real-time alarm evaluation and notification
 
-*   **Alarm Configuration**: Alarms can be created and associated with any Analog Input (AI) tag. Each alarm is defined by:
-    *   **Trigger Type**: Activates when the tag's value goes `Above` or `Below` a certain point.
-    *   **Limit**: The numerical threshold that triggers the alarm.
-    *   **Message**: A custom text message to be displayed when the alarm is triggered.
+**Alarm Lifecycle:**
+1. Continuous monitoring of AI tag values against alarm limits
+2. Automatic database logging when conditions are met
+3. Real-time GUI updates for active alarms
+4. Historical tracking for analysis and compliance
 
-*   **Alarm Lifecycle**:
-    1.  The `DataConcentrator` continuously compares the current value of each AI tag against its associated alarm limits.
-    2.  If a condition is met, a new entry is created in the `ActivatedAlarms` table in the database, capturing the alarm ID, tag name, message, and the exact time of the event.
-    3.  An event is published to the `ScadaGUI`, which then displays the new active alarm in the Monitor tab.
+### 3. Real-Time Data Processing
 
-### 3. Real-Time Monitoring and Control
+**Data Flow Architecture:**
+- PLC Simulator generates realistic process data
+- DataConcentrator polls and processes data at configurable intervals
+- Real-time alarm evaluation and event publishing
+- Live GUI updates via event-driven architecture
 
-The "Monitor" tab serves as the main dashboard for observing and interacting with the live system.
+**Control Capabilities:**
+- Manual control of output tags with validation
+- Real-time value updates and status monitoring
+- Input validation for all control operations
+- Thread-safe concurrent operations
 
-*   **Live Tag Values**: A data grid displays all configured tags, showing their real-time values as they are updated by the `DataConcentrator`.
-*   **Manual Control**: When an output tag (AO or DO) is selected in the grid, an input panel appears. The user can enter a value and write it directly to the PLC Simulator. The system validates the input to ensure it is within the tag's defined limits (for AO) or is a valid binary value (0 or 1 for DO).
-*   **Active Alarms Display**: A dedicated panel on the Monitor screen shows a list of currently active alarms, providing immediate feedback on critical events.
+### 4. Historical Data and Reporting
 
-### 4. Reporting
+**Data Persistence:**
+- SQL Server LocalDB for reliable data storage
+- Entity Framework Code-First approach
+- Complete audit trail of all system events
+- Optimized queries for historical data access
 
-The system includes a feature for generating historical data reports.
+**Report Generation:**
+- Automated analysis of historical data
+- Identification of optimal performance periods
+- Timestamped report files for organization
+- Performance metrics and trend analysis
 
-*   **Report Generation**: On the "Reports" tab, a user can click a button to generate a `.txt` file.
-*   **Report Content**: The report analyzes the historical data for all Analog Input tags and lists every recorded value that fell within an "ideal" operational range, which is calculated as: `(high_limit + low_limit) / 2 ±5`. This helps identify periods of stable and optimal process performance.
-*   **File Output**: Each report is saved with a unique, timestamped filename (e.g., `Report_20250926_030100.txt`).
+### 5. Automated Testing Suite
 
-### 5. Automated Testing
+Comprehensive testing framework ensuring system reliability.
 
-A separate console project, `tester`, is included to ensure the reliability of the core logic. It performs a comprehensive suite of tests, including:
-*   **Database Initialization**: Verifies that the database is created correctly.
-*   **CRUD Operations**: Tests the creation, reading, and deletion of tags and alarms.
-*   **Validation Logic**: Confirms that invalid data and configurations are correctly rejected.
-*   **Edge Cases**: Checks for proper handling of null inputs, duplicate entries, and operations on non-existent tags.
-*   **Concurrent Operations**: Simulates multiple threads accessing the `DataConcentrator` to test for thread safety.
+**Test Coverage:**
+- Database initialization and schema validation
+- Complete CRUD operations for all entities
+- Input validation and error handling
+- Edge cases and boundary conditions
+- Concurrent operations and thread safety
+- Integration testing across all components
 
 ## Technology Stack
 
@@ -89,20 +202,42 @@ A separate console project, `tester`, is included to ensure the reliability of t
 *   **Data Access**: Entity Framework 6 (Code-First)
 *   **Database**: SQL Server LocalDB
 
-## Getting Started
+## Quick Start
 
 ### Prerequisites
 
-*   Visual Studio 2019 or newer
-*   .NET desktop development workload
-*   SQL Server LocalDB (usually installed with Visual Studio)
+- **Visual Studio 2019 or newer** with .NET desktop development workload
+- **SQL Server LocalDB** (included with Visual Studio)
+- **Windows 10/11** (WPF requirement)
 
-### Installation and Execution
+### Installation Steps
 
-1.  Clone the repository to your local machine.
-2.  Open the `PSUSUproject.sln` solution file in Visual Studio.
-3.  Build the solution (Build > Build Solution). This will automatically restore the necessary NuGet packages.
-4.  In the Solution Explorer, right-click the `ScadaGUI` project and select "Set as Startup Project".
-5.  Press F5 or click the "Start" button to run the application.
+1. **Clone the Repository**
+   ```bash
+   git clone <repository-url>
+   cd PSUSUproject
+   ```
 
-On the first run, Entity Framework will automatically create the `ScadaDatabase` in your local SQL Server LocalDB instance. You can then begin configuring tags and alarms.
+2. **Open in Visual Studio**
+   - Open `PSUSUproject.sln` in Visual Studio
+   - Allow NuGet package restoration when prompted
+
+3. **Build the Solution**
+   - Build > Build Solution (Ctrl+Shift+B)
+   - Ensure all projects compile successfully
+
+4. **Set Startup Project**
+   - Right-click `ScadaGUI` project → "Set as Startup Project"
+
+5. **Run the Application**
+   - Press F5 or click "Start" button
+   - Database will be automatically created on first run
+
+### First Run Setup
+
+1. **Configure Tags**: Navigate to the Tags tab and create your first data points
+2. **Set Up Alarms**: Use the Alarms tab to configure monitoring thresholds  
+3. **Start Monitoring**: Switch to the Monitor tab to view real-time data
+4. **Generate Reports**: Use the Reports tab to create performance analysis
+
+The system is now ready for industrial process simulation and monitoring!
