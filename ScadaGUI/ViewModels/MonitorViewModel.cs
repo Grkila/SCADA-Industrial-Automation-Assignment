@@ -1,45 +1,49 @@
-﻿// In MonitorViewModel.cs
-using DataConcentrator;
+﻿using DataConcentrator;
 using ScadaGUI.Services;
 using System;
 using System.Collections.ObjectModel;
-using System.Globalization; // <-- ADD THIS
+using System.Globalization;
 using System.Linq;
+using System.Windows;
 using System.Windows.Input;
-using System.Windows.Media; // <-- ADD THIS
+using System.Windows.Media;
 
 namespace ScadaGUI.ViewModels
 {
-    public class MonitorViewModel : BaseViewModel
+    public class MonitorViewModel : BaseViewModel, IDisposable
     {
         private readonly DataCollector _concentrator;
         private Tag _selectedTag;
         private string _valueToWrite;
         private bool _isOutputTagSelected;
+        private string _statusMessage;
+        private Brush _statusMessageColor;
 
         public ObservableCollection<Tag> MonitoredTags { get; set; }
         public ObservableCollection<ActiveAlarm> ActiveAlarms { get; set; }
 
-        // --- START: Properties for User Feedback ---
-        private string _statusMessage;
         public string StatusMessage
         {
             get => _statusMessage;
             set { _statusMessage = value; OnPropertyChanged(); }
         }
 
-        private Brush _statusMessageColor;
         public Brush StatusMessageColor
         {
             get => _statusMessageColor;
             set { _statusMessageColor = value; OnPropertyChanged(); }
         }
-        // --- END: Properties for User Feedback ---
 
         public string ValueToWrite
         {
             get => _valueToWrite;
-            set { _valueToWrite = value; OnPropertyChanged(); CommandManager.InvalidateRequerySuggested(); }
+            set
+            {
+                _valueToWrite = value;
+                OnPropertyChanged();
+                CommandManager.InvalidateRequerySuggested();
+                StatusMessage = string.Empty;
+            }
         }
 
         public bool IsOutputTagSelected
@@ -59,7 +63,7 @@ namespace ScadaGUI.ViewModels
                 OnPropertyChanged();
                 IsOutputTagSelected = _selectedTag != null && (_selectedTag.Type == TagType.AO || _selectedTag.Type == TagType.DO);
                 ValueToWrite = string.Empty;
-                StatusMessage = string.Empty; // Clear status when selection changes
+                StatusMessage = string.Empty;
             }
         }
 
@@ -69,45 +73,42 @@ namespace ScadaGUI.ViewModels
             ActiveAlarms = new ObservableCollection<ActiveAlarm>();
             _concentrator.ValuesUpdated += Concentrator_ValuesUpdated;
 
-            // Load tags and subscribe to the event for each one
             MonitoredTags = new ObservableCollection<Tag>();
             foreach (var tag in _concentrator.GetTags())
             {
-                tag.ScanStateChanged += OnTagScanStateChanged; // Subscribe to the event
+                tag.ScanStateChanged += OnTagScanStateChanged;
                 MonitoredTags.Add(tag);
             }
 
             WriteToTagCommand = new RelayCommand(_ => WriteTagValue(), _ => CanWriteTagValue());
         }
 
-        // This is the event handler that will be called when a checkbox is clicked
+        public void Dispose()
+        {
+            _concentrator.ValuesUpdated -= Concentrator_ValuesUpdated;
+            foreach (var tag in MonitoredTags)
+            {
+                tag.ScanStateChanged -= OnTagScanStateChanged;
+            }
+        }
+
         private void OnTagScanStateChanged(Tag changedTag, bool isScanning)
         {
             try
             {
-                // Call the method on your DataCollector to persist the change
                 _concentrator.SetTagScanning(changedTag.Name, isScanning);
-                System.Diagnostics.Debug.WriteLine($"VIEWMODEL: Instructed DataCollector to set scanning for '{changedTag.Name}' to {isScanning}");
             }
             catch (Exception ex)
             {
-                // Handle potential errors (e.g., display a message to the user)
                 System.Diagnostics.Debug.WriteLine($"ERROR: Failed to update scan state. {ex.Message}");
             }
         }
 
         private bool CanWriteTagValue()
         {
-            // As soon as the user can write, clear any old status messages
-            if (IsOutputTagSelected && !string.IsNullOrWhiteSpace(ValueToWrite))
-            {
-                StatusMessage = string.Empty;
-                return true;
-            }
-            return false;
+            return IsOutputTagSelected && !string.IsNullOrWhiteSpace(ValueToWrite);
         }
 
-        // --- REPLACED: The old WriteTagValue method is replaced with this ---
         private void WriteTagValue()
         {
             if (SelectedTag == null)
@@ -124,6 +125,16 @@ namespace ScadaGUI.ViewModels
                 return;
             }
 
+            if (SelectedTag.Type == TagType.AO)
+            {
+                if (value < SelectedTag.LowLimit || value > SelectedTag.HighLimit)
+                {
+                    StatusMessage = $"Error: Value must be between {SelectedTag.LowLimit} and {SelectedTag.HighLimit}.";
+                    StatusMessageColor = Brushes.Red;
+                    return;
+                }
+            }
+
             if (SelectedTag.Type == TagType.DO && value != 0 && value != 1)
             {
                 StatusMessage = "Error: Digital Output (DO) tags only accept 0 or 1.";
@@ -133,9 +144,7 @@ namespace ScadaGUI.ViewModels
 
             try
             {
-                // This is the crucial call to the background service
                 _concentrator.WriteTagValue(SelectedTag.Name, value);
-
                 StatusMessage = $"Successfully wrote '{value}' to tag '{SelectedTag.Name}'.";
                 StatusMessageColor = Brushes.Green;
                 ValueToWrite = string.Empty;
@@ -144,13 +153,14 @@ namespace ScadaGUI.ViewModels
             {
                 StatusMessage = $"Error: {ex.Message}";
                 StatusMessageColor = Brushes.Red;
-                System.Diagnostics.Debug.WriteLine($"[WRITE FAILED]: {ex.Message}");
             }
         }
 
         private void Concentrator_ValuesUpdated(object sender, EventArgs e)
         {
-            App.Current.Dispatcher.Invoke(() =>
+            if (Application.Current?.Dispatcher == null) return;
+
+            Application.Current.Dispatcher.Invoke(() =>
             {
                 var currentAlarms = _concentrator.GetActiveAlarms().ToList();
                 var alarmsToRemove = ActiveAlarms.Where(a => !currentAlarms.Any(ca => ca.Time == a.Time && ca.TagName == a.TagName)).ToList();
@@ -167,11 +177,15 @@ namespace ScadaGUI.ViewModels
                 }
             });
         }
+
         public void HandleTagAdded(Tag tag)
         {
-            App.Current.Dispatcher.Invoke(() => {
+            if (Application.Current?.Dispatcher == null) return;
+            Application.Current.Dispatcher.Invoke(() =>
+            {
                 if (!MonitoredTags.Any(t => t.Name == tag.Name))
                 {
+                    tag.ScanStateChanged += OnTagScanStateChanged;
                     MonitoredTags.Add(tag);
                 }
             });
@@ -179,14 +193,18 @@ namespace ScadaGUI.ViewModels
 
         public void HandleTagRemoved(Tag tag)
         {
-            App.Current.Dispatcher.Invoke(() => {
+            if (Application.Current?.Dispatcher == null) return;
+            Application.Current.Dispatcher.Invoke(() =>
+            {
                 var tagToRemove = MonitoredTags.FirstOrDefault(t => t.Name == tag.Name);
                 if (tagToRemove != null)
                 {
+                    tagToRemove.ScanStateChanged -= OnTagScanStateChanged;
                     MonitoredTags.Remove(tagToRemove);
                 }
             });
         }
+
         public DataCollector GetDataConcentrator() => _concentrator;
     }
 }
