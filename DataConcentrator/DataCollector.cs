@@ -75,7 +75,16 @@ namespace DataConcentrator
 
                                     // CRUCIAL: Update the last scanned time to now
                                     tag.LastScanned = DateTime.Now;
-
+                                    if (tag.Type == TagType.AI)
+                                    {
+                                        var historyEntry = new TagValueHistory
+                                        {
+                                            TagName = tag.Name,
+                                            Value = currentValue,
+                                            Timestamp = tag.LastScanned // Koristimo vreme skeniranja
+                                        };
+                                        _db.TagValueHistory.Add(historyEntry);
+                                    }
                                     SaveCurrentValueToDatabase(tag, currentValue);
                                     CheckAlarmsForTag(tag);
                                 }

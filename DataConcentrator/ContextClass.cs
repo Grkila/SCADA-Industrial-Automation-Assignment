@@ -21,6 +21,7 @@ namespace DataConcentrator
         public virtual DbSet<Alarm> Alarms { get; set; }
 
         public virtual DbSet<ActiveAlarm> ActivatedAlarms { get; set; }
+        public virtual DbSet<TagValueHistory> TagValueHistory { get; set; }
 
         protected override void OnModelCreating(DbModelBuilder modelBuilder)
         {
