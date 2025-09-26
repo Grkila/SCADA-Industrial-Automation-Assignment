@@ -1,11 +1,15 @@
 ﻿using DataConcentrator;
-using DataConcentrator;
 using ScadaGUI.Services;
 using System;
 using System.Collections.ObjectModel;
+using System.Globalization;
+using System.Globalization;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
+
 namespace ScadaGUI.ViewModels
 {
     public class TagManagementViewModel : BaseViewModel
@@ -17,21 +21,52 @@ namespace ScadaGUI.ViewModels
         public event Action<Tag> TagAdded;
         public event Action<Tag> TagRemoved;
 
+        #region UI-Specific String Properties for Binding
+
+        private string _newTagName;
+        public string NewTagName { get => _newTagName; set { _newTagName = value; OnPropertyChanged(); CommandManager.InvalidateRequerySuggested(); } }
+
+        private string _newTagIoAddress;
+        public string NewTagIoAddress { get => _newTagIoAddress; set { _newTagIoAddress = value; OnPropertyChanged(); CommandManager.InvalidateRequerySuggested(); } }
+
+        private string _newTagDescription;
+        public string NewTagDescription { get => _newTagDescription; set { _newTagDescription = value; OnPropertyChanged(); } }
+
+        private string _newTagScanTime;
+        public string NewTagScanTime { get => _newTagScanTime; set { _newTagScanTime = value; OnPropertyChanged(); CommandManager.InvalidateRequerySuggested(); } }
+
+        private string _newTagLowLimit;
+        public string NewTagLowLimit { get => _newTagLowLimit; set { _newTagLowLimit = value; OnPropertyChanged(); CommandManager.InvalidateRequerySuggested(); } }
+
+        private string _newTagHighLimit;
+        public string NewTagHighLimit { get => _newTagHighLimit; set { _newTagHighLimit = value; OnPropertyChanged(); CommandManager.InvalidateRequerySuggested(); } }
+
+        private string _newTagUnits;
+        public string NewTagUnits { get => _newTagUnits; set { _newTagUnits = value; OnPropertyChanged(); CommandManager.InvalidateRequerySuggested(); } }
+
+        private string _newTagInitialValue;
+        public string NewTagInitialValue { get => _newTagInitialValue; set { _newTagInitialValue = value; OnPropertyChanged(); CommandManager.InvalidateRequerySuggested(); } }
+
+        private bool _newTagIsScanning;
+        public bool NewTagIsScanning { get => _newTagIsScanning; set { _newTagIsScanning = value; OnPropertyChanged(); } }
+
+        #endregion
+
         private TagType? _selectedTagTypeForComboBox;
         public TagType? SelectedTagTypeForComboBox
         {
             get => _selectedTagTypeForComboBox;
             set
             {
-                _selectedTagTypeForComboBox = value;
-                OnPropertyChanged();
-
-                if (value.HasValue)
+                if (_selectedTagTypeForComboBox != value)
                 {
-                    UpdateTagType(value.Value);
+                    _selectedTagTypeForComboBox = value;
+                    OnPropertyChanged();
+                    CommandManager.InvalidateRequerySuggested();
+                    OnPropertyChanged(nameof(AnalogFieldsVisibility));
+                    OnPropertyChanged(nameof(InputFieldsVisibility));
+                    OnPropertyChanged(nameof(OutputFieldsVisibility));
                 }
-
-                CommandManager.InvalidateRequerySuggested();
             }
         }
 
@@ -44,44 +79,13 @@ namespace ScadaGUI.ViewModels
         public Tag SelectedTag
         {
             get => _selectedTag;
-            set
-            {
-                _selectedTag = value;
-                OnPropertyChanged();
-                CommandManager.InvalidateRequerySuggested();
-            }
-        }
-
-        public Tag NewTag
-        {
-            get => _newTag;
-            set { _newTag = value; OnPropertyChanged(); }
+            set { _selectedTag = value; OnPropertyChanged(); CommandManager.InvalidateRequerySuggested(); }
         }
 
         public string ErrorMessage
         {
             get => _errorMessage;
             set { _errorMessage = value; OnPropertyChanged(); }
-        }
-
-        private void UpdateTagType(TagType newType)
-        {
-            if (NewTag.Type != newType)
-            {
-                var name = NewTag.Name;
-                var description = NewTag.Description;
-                var ioAddress = NewTag.IOAddress;
-
-                NewTag = new Tag { Type = newType }; 
-                NewTag.Name = name;
-                NewTag.Description = description;
-                NewTag.IOAddress = ioAddress;
-
-                OnPropertyChanged(nameof(NewTag));
-                OnPropertyChanged(nameof(AnalogFieldsVisibility));
-                OnPropertyChanged(nameof(InputFieldsVisibility));
-                OnPropertyChanged(nameof(OutputFieldsVisibility));
-            }
         }
 
         public Visibility AnalogFieldsVisibility => (SelectedTagTypeForComboBox == TagType.AI || SelectedTagTypeForComboBox == TagType.AO) ? Visibility.Visible : Visibility.Collapsed;
@@ -92,55 +96,119 @@ namespace ScadaGUI.ViewModels
         {
             _db = db;
             Tags = new ObservableCollection<Tag>(_db.GetTags());
-
             AddTagCommand = new RelayCommand(_ => AddTag(), _ => CanAddTag());
             DeleteTagCommand = new RelayCommand(_ => DeleteTag(), _ => _selectedTag != null);
         }
 
-
         private bool CanAddTag()
         {
-            return !string.IsNullOrWhiteSpace(NewTag.Name) &&
-                   _selectedTagTypeForComboBox.HasValue &&
-                   !string.IsNullOrWhiteSpace(NewTag.IOAddress);
+            if (string.IsNullOrWhiteSpace(NewTagName) || !_selectedTagTypeForComboBox.HasValue || string.IsNullOrWhiteSpace(NewTagIoAddress))
+            {
+                return false;
+            }
+
+            switch (_selectedTagTypeForComboBox.Value)
+            {
+                case TagType.AI:
+                    return !string.IsNullOrWhiteSpace(NewTagScanTime) && !string.IsNullOrWhiteSpace(NewTagLowLimit) && !string.IsNullOrWhiteSpace(NewTagHighLimit) && !string.IsNullOrWhiteSpace(NewTagUnits);
+                case TagType.AO:
+                    return !string.IsNullOrWhiteSpace(NewTagInitialValue) && !string.IsNullOrWhiteSpace(NewTagLowLimit) && !string.IsNullOrWhiteSpace(NewTagHighLimit) && !string.IsNullOrWhiteSpace(NewTagUnits);
+                case TagType.DI:
+                    return !string.IsNullOrWhiteSpace(NewTagScanTime);
+                case TagType.DO:
+                    return !string.IsNullOrWhiteSpace(NewTagInitialValue);
+                default:
+                    return false;
+            }
         }
 
         private void ResetForm()
         {
-            NewTag = new Tag();
-            SelectedTagTypeForComboBox = null; 
+            NewTagName = string.Empty;
+            NewTagIoAddress = string.Empty;
+            NewTagDescription = string.Empty;
+            NewTagScanTime = string.Empty;
+            NewTagLowLimit = string.Empty;
+            NewTagHighLimit = string.Empty;
+            NewTagUnits = string.Empty;
+            NewTagInitialValue = string.Empty;
+            NewTagIsScanning = false;
+            SelectedTagTypeForComboBox = null;
             ErrorMessage = "";
-            OnPropertyChanged(nameof(NewTag));
         }
 
         private void AddTag()
         {
-            // 1. Perform validation (your existing code is perfect)
             if (!CanAddTag())
             {
-                ErrorMessage = "Tag Name and Type are required.";
+                ErrorMessage = "All required fields must be filled.";
                 return;
             }
-            if (Tags.Any(t => t.Name == NewTag.Name))
+
+            if (Tags.Any(t => t.Name == NewTagName))
             {
                 ErrorMessage = "Tag with that name already exists.";
                 return;
             }
+            if (Tags.Any(t => t.IOAddress == NewTagIoAddress))
+            {
+                ErrorMessage = "Tag with that IO Address already exists.";
+                return;
+            }
 
-            // 2. Finalize the NewTag object
-            NewTag.Type = _selectedTagTypeForComboBox.Value;
+            _newTag = new Tag
+            {
+                Name = NewTagName,
+                IOAddress = NewTagIoAddress,
+                Description = NewTagDescription,
+                Type = _selectedTagTypeForComboBox.Value
+            };
 
-            // 3. Save it to the database
-            _db.AddTag(NewTag);
+            try
+            {
+                if (_newTag.Type == TagType.AI || _newTag.Type == TagType.AO)
+                {
+                    double lowLimit = double.Parse(NewTagLowLimit, CultureInfo.InvariantCulture);
+                    double highLimit = double.Parse(NewTagHighLimit, CultureInfo.InvariantCulture);
+                    if (lowLimit >= highLimit)
+                    {
+                        ErrorMessage = "Low Limit must be less than High Limit.";
+                        return;
+                    }
+                    _newTag.LowLimit = lowLimit;
+                    _newTag.HighLimit = highLimit;
+                    _newTag.Units = NewTagUnits;
+                }
 
+                if (_newTag.Type == TagType.AI || _newTag.Type == TagType.DI)
+                {
+                    double scanTime = double.Parse(NewTagScanTime, CultureInfo.InvariantCulture);
+                    if (scanTime <= 0)
+                    {
+                        ErrorMessage = "Scan Time must be a positive number.";
+                        return;
+                    }
+                    _newTag.ScanTime = scanTime;
+                    _newTag.IsScanning = NewTagIsScanning;
+                }
 
-            // 4. Add the *exact same object* to the UI's collection.
-            //    This is the key simplification. The UI will update instantly.
-            Tags.Add(NewTag);
-            TagAdded?.Invoke(NewTag);
+                if (_newTag.Type == TagType.AO || _newTag.Type == TagType.DO)
+                {
+                    _newTag.InitialValue = double.Parse(NewTagInitialValue, CultureInfo.InvariantCulture);
+                }
+            }
+            catch (FormatException)
+            {
+                ErrorMessage = "Numeric fields contain invalid characters. Use '.' for decimal point.";
+                return;
+            }
 
-            // 5. Reset the form for the next entry. This is a crucial step
-            //    as it points NewTag to a new, empty object.
+            ErrorMessage = "";
+
+            _db.AddTag(_newTag);
+            Tags.Add(_newTag);
+            TagAdded?.Invoke(_newTag);
+
             ResetForm();
             CommandManager.InvalidateRequerySuggested();
         }
@@ -148,18 +216,17 @@ namespace ScadaGUI.ViewModels
         private void DeleteTag()
         {
             if (_selectedTag != null)
-
             {
                 var tagToDelete = _selectedTag;
                 _db.DeleteTag(_selectedTag);
                 Tags.Remove(_selectedTag);
-                ResetForm();
                 TagRemoved?.Invoke(tagToDelete);
 
-                // Optional: Clear selection after deletion
                 SelectedTag = null;
+                ResetForm();
                 CommandManager.InvalidateRequerySuggested();
             }
         }
+        
     }
 }

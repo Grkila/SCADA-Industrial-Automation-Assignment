@@ -13,18 +13,17 @@
 
         <DataGrid Grid.Row="0" ItemsSource="{Binding Tags}" 
                   SelectedItem="{Binding SelectedTag}"
-                  AutoGenerateColumns="False" CanUserAddRows="False"
-                  BeginningEdit="DataGrid_BeginningEdit">
+                  AutoGenerateColumns="False" CanUserAddRows="False">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" IsReadOnly="True" />
                 <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="Auto" IsReadOnly="True" />
-                <DataGridTextColumn Header="IO Address" Binding="{Binding IOAddress}" Width="Auto" />
-                <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="2*" />
-                <DataGridTextColumn Header="Units" Binding="{Binding Units}" Width="Auto" />
-                <DataGridTextColumn Header="ScanTime" Binding="{Binding ScanTime}" Width="Auto" />
-                <DataGridCheckBoxColumn Header="Scanning On" Binding="{Binding IsScanning}" Width="Auto" />
-                <DataGridTextColumn Header="Low Limit" Binding="{Binding LowLimit}" Width="Auto" />
-                <DataGridTextColumn Header="High Limit" Binding="{Binding HighLimit}" Width="Auto" />
+                <DataGridTextColumn Header="IO Address" Binding="{Binding IOAddress}" Width="Auto" IsReadOnly="True"/>
+                <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="2*" IsReadOnly="True"/>
+                <DataGridTextColumn Header="Units" Binding="{Binding Units}" Width="Auto" IsReadOnly="True"/>
+                <DataGridTextColumn Header="ScanTime" Binding="{Binding ScanTime}" Width="Auto" IsReadOnly="True"/>
+                <DataGridCheckBoxColumn Header="Scanning On" Binding="{Binding IsScanning}" Width="Auto" IsReadOnly="True"/>
+                <DataGridTextColumn Header="Low Limit" Binding="{Binding LowLimit}" Width="Auto" IsReadOnly="True"/>
+                <DataGridTextColumn Header="High Limit" Binding="{Binding HighLimit}" Width="Auto" IsReadOnly="True"/>
             </DataGrid.Columns>
         </DataGrid>
 
@@ -49,34 +48,34 @@
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <Label Grid.Row="0" Grid.Column="0" Content="Name:" VerticalAlignment="Center" Margin="5"/>
-                    <TextBox Grid.Row="0" Grid.Column="1" Margin="5" Text="{Binding NewTag.Name, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBox Grid.Row="0" Grid.Column="1" Margin="5" Text="{Binding NewTagName, UpdateSourceTrigger=PropertyChanged}" />
                     <Label Grid.Row="0" Grid.Column="2" Content="Type:" VerticalAlignment="Center" Margin="15,5,5,5"/>
                     <ComboBox Grid.Row="0" Grid.Column="3" Margin="5" 
                               ItemsSource="{Binding TagTypes}" 
                               SelectedItem="{Binding SelectedTagTypeForComboBox, Mode=TwoWay}" />
                     <Label Grid.Row="1" Grid.Column="0" Content="IO Address:" VerticalAlignment="Center" Margin="5"/>
-                    <TextBox Grid.Row="1" Grid.Column="1" Margin="5" Text="{Binding NewTag.IOAddress, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBox Grid.Row="1" Grid.Column="1" Margin="5" Text="{Binding NewTagIoAddress, UpdateSourceTrigger=PropertyChanged}" />
                     <Label Grid.Row="1" Grid.Column="2" Content="Description:" VerticalAlignment="Center" Margin="15,5,5,5"/>
-                    <TextBox Grid.Row="1" Grid.Column="3" Margin="5" Text="{Binding NewTag.Description, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBox Grid.Row="1" Grid.Column="3" Margin="5" Text="{Binding NewTagDescription, UpdateSourceTrigger=PropertyChanged}" />
                 </Grid>
                 <Separator Grid.Row="1" Margin="5,10,5,5"/>
                 <StackPanel Grid.Row="2" Margin="0,5,0,10">
                     <StackPanel Orientation="Horizontal" Visibility="{Binding AnalogFieldsVisibility}">
                         <Label Content="Low Limit:" VerticalAlignment="Center" Margin="5"/>
-                        <TextBox Width="80" Margin="0,5,5,5" Text="{Binding NewTag.LowLimit}" />
+                        <TextBox Width="80" Margin="0,5,5,5" Text="{Binding NewTagLowLimit, UpdateSourceTrigger=PropertyChanged}" PreviewTextInput="TextBox_PreviewTextInput" />
                         <Label Content="High Limit:" VerticalAlignment="Center" Margin="15,5,5,5"/>
-                        <TextBox Width="80" Margin="0,5,5,5" Text="{Binding NewTag.HighLimit}" />
+                        <TextBox Width="80" Margin="0,5,5,5" Text="{Binding NewTagHighLimit, UpdateSourceTrigger=PropertyChanged}" PreviewTextInput="TextBox_PreviewTextInput" />
                         <Label Content="Units:" VerticalAlignment="Center" Margin="15,5,5,5"/>
-                        <TextBox Width="80" Margin="0,5,5,5" Text="{Binding NewTag.Units}" />
+                        <TextBox Width="80" Margin="0,5,5,5" Text="{Binding NewTagUnits, UpdateSourceTrigger=PropertyChanged}" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Visibility="{Binding InputFieldsVisibility}">
                         <Label Content="Scan Time (ms):" VerticalAlignment="Center" Margin="5"/>
-                        <TextBox Width="80" Margin="0,5,5,5" Text="{Binding NewTag.ScanTime}" />
-                        <CheckBox Content="Scanning On" VerticalAlignment="Center" Margin="15,5,5,5" IsChecked="{Binding NewTag.IsScanning}"/>
+                        <TextBox Width="80" Margin="0,5,5,5" Text="{Binding NewTagScanTime, UpdateSourceTrigger=PropertyChanged}" PreviewTextInput="TextBox_PreviewTextInput" />
+                        <CheckBox Content="Scanning On" VerticalAlignment="Center" Margin="15,5,5,5" IsChecked="{Binding NewTagIsScanning}"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Visibility="{Binding OutputFieldsVisibility}">
                         <Label Content="Initial Value:" VerticalAlignment="Center" Margin="5"/>
-                        <TextBox Width="80" Margin="0,5,5,5" Text="{Binding NewTag.InitialValue}" />
+                        <TextBox Width="80" Margin="0,5,5,5" Text="{Binding NewTagInitialValue, UpdateSourceTrigger=PropertyChanged}" PreviewTextInput="TextBox_PreviewTextInput" />
                     </StackPanel>
                 </StackPanel>
                 <StackPanel Grid.Row="4" Orientation="Vertical">
