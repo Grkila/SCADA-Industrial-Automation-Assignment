@@ -280,7 +280,7 @@ namespace DataConcentrator
                 {
                     _db.AddTag(tag);
                     _db.SaveChanges();
-
+                    
                     tags.Add(tag);
                     Console.WriteLine($"Added tag {tag.Name} to DataCollector");
                 }
@@ -495,6 +495,13 @@ namespace DataConcentrator
                 {
                     tags.Add(tag);
                     Console.WriteLine($"DataCollector dynamically added tag: {tag.Name}");
+                    if (tag.IsOutputTag() && tag.InitialValue.HasValue)
+                    {
+                        tag.CurrentValue = tag.InitialValue.Value;
+
+                        WriteToPLCSimulator(tag, tag.InitialValue.Value);
+                        Console.WriteLine($"Initial value {tag.InitialValue.Value} sent to PLC for tag {tag.Name}");
+                    }
                 }
             }
         }

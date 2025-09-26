@@ -24,7 +24,6 @@ namespace ScadaGUI.ViewModels
         public ObservableCollection<ActiveAlarm> ActiveAlarms { get; set; }
 
 
-        private string _statusMessage;
         public string StatusMessage
         {
             get => _statusMessage;

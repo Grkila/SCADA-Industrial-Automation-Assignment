@@ -21,7 +21,28 @@
                 <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="2*" IsReadOnly="True"/>
                 <DataGridTextColumn Header="Units" Binding="{Binding Units}" Width="Auto" IsReadOnly="True"/>
                 <DataGridTextColumn Header="ScanTime" Binding="{Binding ScanTime}" Width="Auto" IsReadOnly="True"/>
-                <DataGridCheckBoxColumn Header="Scanning On" Binding="{Binding IsScanning}" Width="Auto" IsReadOnly="True"/>
+                <DataGridTemplateColumn Header="Scanning On" Width="Auto">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <CheckBox IsChecked="{Binding Path=IsScanning, UpdateSourceTrigger=PropertyChanged}"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center">
+                                <CheckBox.Style>
+                                    <Style TargetType="CheckBox">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Path=Type}" Value="AO">
+                                                <Setter Property="IsEnabled" Value="False" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Path=Type}" Value="DO">
+                                                <Setter Property="IsEnabled" Value="False" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </CheckBox.Style>
+                            </CheckBox>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
                 <DataGridTextColumn Header="Low Limit" Binding="{Binding LowLimit}" Width="Auto" IsReadOnly="True"/>
                 <DataGridTextColumn Header="High Limit" Binding="{Binding HighLimit}" Width="Auto" IsReadOnly="True"/>
             </DataGrid.Columns>
