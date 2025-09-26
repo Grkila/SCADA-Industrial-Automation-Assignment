@@ -46,7 +46,7 @@
                               ItemsSource="{Binding AlarmTypes}" 
                               SelectedItem="{Binding SelectedAlarmType}" />
                     <Label Content="Limit:" VerticalAlignment="Center" Margin="15,5,5,5"/>
-                    <TextBox Width="80" Margin="0,5,5,5" Text="{Binding NewAlarm.Limit}" />
+                    <TextBox Width="80" Margin="0,5,5,5" Text="{Binding NewAlarm.Limit, UpdateSourceTrigger=PropertyChanged}" />
                 </StackPanel>
 
                 <Grid Grid.Row="2">
@@ -55,7 +55,7 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
                     <Label Grid.Column="0" Content="Message:" VerticalAlignment="Center" Margin="5"/>
-                    <TextBox Grid.Column="1" Margin="5" Text="{Binding NewAlarm.Message}" />
+                    <TextBox Grid.Column="1" Margin="5" Text="{Binding NewAlarm.Message, UpdateSourceTrigger=PropertyChanged}" />
                 </Grid>
 
                 <StackPanel Grid.Row="3" Orientation="Vertical" Margin="0,10,0,0">
