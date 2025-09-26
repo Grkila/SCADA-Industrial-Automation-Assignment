@@ -115,7 +115,6 @@ namespace ScadaGUI.ViewModels
 
         private void AddTag()
         {
-            // 1. Perform validation (your existing code is perfect)
             if (!CanAddTag())
             {
                 ErrorMessage = "Tag Name and Type are required.";
@@ -127,20 +126,16 @@ namespace ScadaGUI.ViewModels
                 return;
             }
 
-            // 2. Finalize the NewTag object
             NewTag.Type = _selectedTagTypeForComboBox.Value;
 
-            // 3. Save it to the database
             _db.AddTag(NewTag);
 
 
-            // 4. Add the *exact same object* to the UI's collection.
-            //    This is the key simplification. The UI will update instantly.
+         
             Tags.Add(NewTag);
             TagAdded?.Invoke(NewTag);
 
-            // 5. Reset the form for the next entry. This is a crucial step
-            //    as it points NewTag to a new, empty object.
+         
             ResetForm();
             CommandManager.InvalidateRequerySuggested();
         }
@@ -156,7 +151,6 @@ namespace ScadaGUI.ViewModels
                 ResetForm();
                 TagRemoved?.Invoke(tagToDelete);
 
-                // Optional: Clear selection after deletion
                 SelectedTag = null;
                 CommandManager.InvalidateRequerySuggested();
             }

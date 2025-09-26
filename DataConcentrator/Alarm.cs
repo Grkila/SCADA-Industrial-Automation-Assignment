@@ -58,7 +58,6 @@ namespace DataConcentrator
             ValidateAndSetMessage(message);
         }
 
-        // Validacione metode
         public void ValidateAndSetId(string value)
         {
             if (string.IsNullOrWhiteSpace(value))
@@ -93,7 +92,6 @@ namespace DataConcentrator
             Message = value;
         }
 
-        // Business logika
         public bool CheckTriggerCondition(double currentValue)
         {
             return (Type==AlarmType.Above) ? currentValue > Limit : currentValue < Limit;
@@ -108,7 +106,7 @@ namespace DataConcentrator
                 IsActive = true;
                 IsAcknowledged = false;
                 ActivationTime = DateTime.Now;
-                return true; // Alarm je upravo aktiviran
+                return true; 
             }
 
             return false;
@@ -135,7 +133,6 @@ namespace DataConcentrator
             return false;
         }
 
-        // Validacija celokupnog objekta
         public void ValidateConfiguration()
         {
             ValidateAndSetId(Id);

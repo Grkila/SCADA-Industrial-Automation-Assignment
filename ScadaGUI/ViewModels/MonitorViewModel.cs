@@ -1,12 +1,12 @@
-﻿// In MonitorViewModel.cs
+﻿
 using DataConcentrator;
 using ScadaGUI.Services;
 using System;
 using System.Collections.ObjectModel;
-using System.Globalization; // <-- ADD THIS
+using System.Globalization; 
 using System.Linq;
 using System.Windows.Input;
-using System.Windows.Media; // <-- ADD THIS
+using System.Windows.Media; 
 
 namespace ScadaGUI.ViewModels
 {
@@ -20,7 +20,7 @@ namespace ScadaGUI.ViewModels
         public ObservableCollection<Tag> MonitoredTags { get; set; }
         public ObservableCollection<ActiveAlarm> ActiveAlarms { get; set; }
 
-        // --- START: Properties for User Feedback ---
+
         private string _statusMessage;
         public string StatusMessage
         {
@@ -34,7 +34,6 @@ namespace ScadaGUI.ViewModels
             get => _statusMessageColor;
             set { _statusMessageColor = value; OnPropertyChanged(); }
         }
-        // --- END: Properties for User Feedback ---
 
         public string ValueToWrite
         {
@@ -59,7 +58,7 @@ namespace ScadaGUI.ViewModels
                 OnPropertyChanged();
                 IsOutputTagSelected = _selectedTag != null && (_selectedTag.Type == TagType.AO || _selectedTag.Type == TagType.DO);
                 ValueToWrite = string.Empty;
-                StatusMessage = string.Empty; // Clear status when selection changes
+                StatusMessage = string.Empty; 
             }
         }
 
@@ -69,36 +68,33 @@ namespace ScadaGUI.ViewModels
             ActiveAlarms = new ObservableCollection<ActiveAlarm>();
             _concentrator.ValuesUpdated += Concentrator_ValuesUpdated;
 
-            // Load tags and subscribe to the event for each one
+        
             MonitoredTags = new ObservableCollection<Tag>();
             foreach (var tag in _concentrator.GetTags())
             {
-                tag.ScanStateChanged += OnTagScanStateChanged; // Subscribe to the event
+                tag.ScanStateChanged += OnTagScanStateChanged; 
                 MonitoredTags.Add(tag);
             }
 
             WriteToTagCommand = new RelayCommand(_ => WriteTagValue(), _ => CanWriteTagValue());
         }
 
-        // This is the event handler that will be called when a checkbox is clicked
+
         private void OnTagScanStateChanged(Tag changedTag, bool isScanning)
         {
             try
-            {
-                // Call the method on your DataCollector to persist the change
+            { 
                 _concentrator.SetTagScanning(changedTag.Name, isScanning);
                 System.Diagnostics.Debug.WriteLine($"VIEWMODEL: Instructed DataCollector to set scanning for '{changedTag.Name}' to {isScanning}");
             }
             catch (Exception ex)
             {
-                // Handle potential errors (e.g., display a message to the user)
                 System.Diagnostics.Debug.WriteLine($"ERROR: Failed to update scan state. {ex.Message}");
             }
         }
 
         private bool CanWriteTagValue()
         {
-            // As soon as the user can write, clear any old status messages
             if (IsOutputTagSelected && !string.IsNullOrWhiteSpace(ValueToWrite))
             {
                 StatusMessage = string.Empty;
@@ -107,7 +103,6 @@ namespace ScadaGUI.ViewModels
             return false;
         }
 
-        // --- REPLACED: The old WriteTagValue method is replaced with this ---
         private void WriteTagValue()
         {
             if (SelectedTag == null)
@@ -133,7 +128,6 @@ namespace ScadaGUI.ViewModels
 
             try
             {
-                // This is the crucial call to the background service
                 _concentrator.WriteTagValue(SelectedTag.Name, value);
 
                 StatusMessage = $"Successfully wrote '{value}' to tag '{SelectedTag.Name}'.";

@@ -8,20 +8,19 @@ namespace DataConcentrator
     public class TagValueHistory
     {
         [Key]
-        public int Id { get; set; } // Primarni ključ za svaki zapis
+        public int Id { get; set; }
 
         [Required]
-        [StringLength(50)] // Mora da se poklapa sa dužinom imena taga
+        [StringLength(50)]
         [ForeignKey("Tag")]
-        public string TagName { get; set; } // Spoljni ključ ka tabeli Tags
+        public string TagName { get; set; }
 
         [Required]
-        public double Value { get; set; } // Vrednost koja je očitana
+        public double Value { get; set; }
 
         [Required]
-        public DateTime Timestamp { get; set; } // Vreme kada je vrednost očitana
+        public DateTime Timestamp { get; set; }
 
-        // Navigaciono svojstvo ka Tagu
         public virtual Tag Tag { get; set; }
     }
 }
