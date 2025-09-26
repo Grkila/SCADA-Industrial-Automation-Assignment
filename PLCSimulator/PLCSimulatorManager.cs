@@ -7,87 +7,76 @@ using System.Threading.Tasks;
 
 namespace PLCSimulator
 {
-    /// <summary>
-    /// PLC Simulator
-    /// 
-    /// 4 x ANALOG INPUT : ADDR001 - ADDR004
-    /// 4 x ANALOG OUTPUT: ADDR005 - ADDR008
-    /// 1 x DIGITAL INPUT: ADDR009
-    /// 1 x DIGITAL OUTPUT: ADDR010
-    /// </summary>
     public class PLCSimulatorManager
     {
         private Dictionary<string, double> addressValues;
         private object locker = new object();
         private Thread t1;
         private Thread t2;
+        private volatile bool _isRunning;
+
 
         public PLCSimulatorManager()
         {
             addressValues = new Dictionary<string, double>();
-
-            // AI
+            
             addressValues.Add("ADDR001", 0);
             addressValues.Add("ADDR002", 0);
             addressValues.Add("ADDR003", 0);
             addressValues.Add("ADDR004", 0);
 
-            // AO
             addressValues.Add("ADDR005", 0);
             addressValues.Add("ADDR006", 0);
             addressValues.Add("ADDR007", 0);
             addressValues.Add("ADDR008", 0);
 
-            // DI
-            // TODO: dodati jos nekoliko adresa za DI (recimo po 4 za svaku vrstu tagova)
             addressValues.Add("ADDR009", 0);
+            addressValues.Add("ADDR011", 0);
+            addressValues.Add("ADDR012", 0);
 
-            // DO
-            // TODO: dodati jos nekoliko adresa za DI (recimo po 4 za svaku vrstu tagova)
             addressValues.Add("ADDR010", 0);
+            addressValues.Add("ADDR013", 0);
+            addressValues.Add("ADDR014", 0);
         }
 
         public void StartPLCSimulator()
         {
-            t1 = new Thread(GeneratingAnalogInputs);
+            _isRunning = true;
+            t1 = new Thread(GeneratingAnalogInputs) { IsBackground = true };
             t1.Start();
 
-            t2 = new Thread(GeneratingDigitalInputs);
+            t2 = new Thread(GeneratingDigitalInputs) { IsBackground = true };
             t2.Start();
         }
 
         private void GeneratingAnalogInputs()
         {
-            while (true)
+            while (_isRunning)
             {
                 Thread.Sleep(100);
 
                 lock (locker)
                 {
-                    addressValues["ADDR001"] = 100 * Math.Sin((double)DateTime.Now.Second / 60 * Math.PI); //SINE
-                    addressValues["ADDR002"] = 100 * DateTime.Now.Second / 60; //RAMP
-                    addressValues["ADDR003"] = 50 * Math.Cos((double)DateTime.Now.Second / 60 * Math.PI); //COS
-                    addressValues["ADDR004"] = RandomNumberBetween(0, 50);  //rand
+                    addressValues["ADDR001"] = 100 * Math.Sin((double)DateTime.Now.Second / 60 * Math.PI);
+                    addressValues["ADDR002"] = 100 * DateTime.Now.Second / 60;
+                    addressValues["ADDR003"] = 50 * Math.Cos((double)DateTime.Now.Second / 60 * Math.PI);
+                    addressValues["ADDR004"] = RandomNumberBetween(0, 50);
                 }
             }
         }
 
         private void GeneratingDigitalInputs()
         {
-            while (true)
+            while (_isRunning)
             {
                 Thread.Sleep(1000);
 
                 lock (locker)
                 {
-                    if (addressValues["ADDR009"] == 0)
-                    {
-                        addressValues["ADDR009"] = 1;
-                    }
-                    else
-                    {
-                        addressValues["ADDR009"] = 0;
-                    }
+                    addressValues["ADDR009"] = addressValues["ADDR009"] == 0 ? 1 : 0;
+
+                    addressValues["ADDR011"] = DateTime.Now.Second % 3 == 0 ? 1 : 0;
+                    addressValues["ADDR012"] = RandomNumberBetween(0, 1) > 0.5 ? 1 : 0;
                 }
             }
         }
@@ -104,12 +93,28 @@ namespace PLCSimulator
                 return -1;
             }
         }
+        public double GetDigitalValue(string address)
+        {
+            if (addressValues.ContainsKey(address))
+            {
+                return addressValues[address];
+            }
+            else
+            {
+                return -1;
+            }
+        }
 
         public void SetAnalogValue(string address, double value)
         {
             if (addressValues.ContainsKey(address))
             {
                 addressValues[address] = value;
+                System.Diagnostics.Debug.WriteLine($"SetAnalogValue - Address: {address}, Value: {value}");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"SetAnalogValue - Address not found: {address}");
             }
         }
 
@@ -118,6 +123,11 @@ namespace PLCSimulator
             if (addressValues.ContainsKey(address))
             {
                 addressValues[address] = value;
+                System.Diagnostics.Debug.WriteLine($"SetDigitalValue - Address: {address}, Value: {value}");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"SetDigitalValue - Address not found: {address}");
             }
         }
 
@@ -129,10 +139,9 @@ namespace PLCSimulator
             return minValue + (next * (maxValue - minValue));
         }
 
-        public void Abort()
+        public void Stop()
         {
-            t1.Abort();
-            t2.Abort();
+            _isRunning = false;
         }
     }
 }

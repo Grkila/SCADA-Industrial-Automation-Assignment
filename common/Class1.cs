@@ -4,9 +4,14 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace DataConcentrator
+namespace Common
 {
-    internal class ActivatedAlarm
+    public enum TagType
     {
+        DI,
+        DO,
+        AI,
+        AO
     }
 }
+

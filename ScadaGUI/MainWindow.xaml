@@ -1,12 +1,31 @@
 ﻿<Window x:Class="ScadaGUI.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:ScadaGUI"
-        mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
+        xmlns:vm="clr-namespace:ScadaGUI.ViewModels"
+        xmlns:viewModels="clr-namespace:ScadaGUI.ViewModels"
+        xmlns:views="clr-namespace:ScadaGUI.Views"
+        Title="SCADA Projekat" Height="600" Width="900"
+                Closing="MainWindow_Closing">
+    <Window.DataContext>
+        <vm:MainViewModel />
+    </Window.DataContext>
     <Grid>
-        
+        <TabControl>
+            <TabItem Header="Tags" DataContext="{Binding TagVM}">
+                <views:TagManagementView />
+            </TabItem>
+            <TabItem Header="Alarms" DataContext="{Binding AlarmVM}">
+                <views:AlarmManagementView />
+            </TabItem>
+            <TabItem Header="Monitor" DataContext="{Binding MonitorVM}">
+                <views:MonitorView />
+            </TabItem>
+            <TabItem Header="Reports" DataContext="{Binding ReportVM}">
+                <views:ReportView />
+            </TabItem>
+            <TabItem Header="Alarm History">
+                <views:AlarmHistoryView DataContext="{Binding AlarmHistoryVM}"/>
+            </TabItem>
+        </TabControl>
     </Grid>
 </Window>

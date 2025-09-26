@@ -1,0 +1,70 @@
+﻿<UserControl x:Class="ScadaGUI.Views.AlarmManagementView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             mc:Ignorable="d" 
+             d:DesignHeight="450" d:DesignWidth="800">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <DataGrid Grid.Row="0" ItemsSource="{Binding Alarms}" AutoGenerateColumns="False" SelectedItem="{Binding SelectedAlarm}" IsReadOnly="True" CanUserAddRows="False">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Tag Name" Binding="{Binding TagName}" Width="*" />
+                <DataGridTextColumn Header="Limit" Binding="{Binding Limit}" Width="Auto" />
+                <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="Auto" />
+                <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="2*" />
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <GroupBox Grid.Row="1" Header="Add New Alarm" Margin="0,10,0,0" Padding="5">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Label Grid.Column="0" Content="Tag Name (AI only):" VerticalAlignment="Center" Margin="5"/>
+                    <ComboBox Grid.Column="1" Margin="5" 
+                              ItemsSource="{Binding AvailableAiTags}" 
+                              SelectedItem="{Binding NewAlarm.TagName}"/>
+                </Grid>
+
+                <StackPanel Grid.Row="1" Orientation="Horizontal">
+                    <Label Content="Alarm when value is:" VerticalAlignment="Center" Margin="5"/>
+                    <ComboBox Width="100" Margin="0,5,5,5" 
+                              ItemsSource="{Binding AlarmTypes}" 
+                              SelectedItem="{Binding SelectedAlarmType}" />
+                    <Label Content="Limit:" VerticalAlignment="Center" Margin="15,5,5,5"/>
+                    <TextBox Width="80" Margin="0,5,5,5" Text="{Binding NewAlarm.Limit, UpdateSourceTrigger=PropertyChanged}" />
+                </StackPanel>
+
+                <Grid Grid.Row="2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Label Grid.Column="0" Content="Message:" VerticalAlignment="Center" Margin="5"/>
+                    <TextBox Grid.Column="1" Margin="5" Text="{Binding NewAlarm.Message, UpdateSourceTrigger=PropertyChanged}" />
+                </Grid>
+
+                <StackPanel Grid.Row="3" Orientation="Vertical" Margin="0,10,0,0">
+                    <StackPanel Orientation="Horizontal" Margin="5">
+                        <Button Content="Add Alarm" Command="{Binding AddAlarmCommand}" Margin="0,0,10,0" Padding="10,5"/>
+                        <Button Content="Delete Selected" Command="{Binding DeleteAlarmCommand}" Padding="10,5"/>
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+        </GroupBox>
+    </Grid>
+</UserControl>

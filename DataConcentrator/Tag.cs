@@ -1,12 +1,472 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Runtime.CompilerServices;
 
 namespace DataConcentrator
 {
-    public class Tag
+    public enum TagType
     {
+        DI,
+        DO,
+        AI,
+        AO
+    }
+
+    [Table("Tags")]
+    public class Tag : INotifyPropertyChanged
+    {
+        public const int MAX_NAME_LENGTH = 50;
+        public const int MAX_DESCRIPTION_LENGTH = 300;
+        public const int MAX_IOADDRESS_LENGTH = 50;
+        public const int MIN_IO_ADDRESS = 0;
+        public const int MAX_IO_ADDRESS = 65535;
+
+        [Key]
+        [StringLength(MAX_NAME_LENGTH)]
+        public string Name { get; set; }
+
+        [Required]
+        [StringLength(MAX_DESCRIPTION_LENGTH)]
+        public string Description { get; set; }
+
+        [Required]
+        [StringLength(MAX_IOADDRESS_LENGTH)]
+        public string IOAddress { get; set; }
+
+        [Required]
+        public TagType Type { get; set; }
+
+        [NotMapped]
+        public Dictionary<string, object> Characteristics { get; private set; } = new Dictionary<string, object>();
+
+        [NotMapped]
+        public DateTime LastScanned { get; set; }
+        public event Action<Tag, bool> ScanStateChanged;
+        [NotMapped]
+        private bool? _isScanning;
+
+        public string CharacteristicsJson
+        {
+            get
+            {
+                return Characteristics == null || Characteristics.Count == 0
+                    ? null
+                    : JsonConvert.SerializeObject(Characteristics);
+            }
+            set
+            {
+                if (string.IsNullOrEmpty(value))
+                {
+                    Characteristics = new Dictionary<string, object>();
+                }
+                else
+                {
+                    try
+                    {
+                        Characteristics = JsonConvert.DeserializeObject<Dictionary<string, object>>(value)
+                                         ?? new Dictionary<string, object>();
+                    }
+                    catch (JsonException)
+                    {
+                        // If JSON is invalid, initialize with empty dictionary
+                        Characteristics = new Dictionary<string, object>();
+                    }
+                }
+            }
+        }
+        [NotMapped]
+        public double? LowLimit { get => GetValue<double?>("LowLimit"); set => SetValue("LowLimit", value); }
+        [NotMapped]
+        public double? HighLimit { get => GetValue<double?>("HighLimit"); set => SetValue("HighLimit", value); }
+        [NotMapped]
+        public string Units { get => GetValue<string>("Units"); set => SetValue("Units", value); }
+        [NotMapped]
+        public double? ScanTime { get => GetValue<int?>("ScanTime"); set => SetValue("ScanTime", value); }
+        [NotMapped]
+        public double? InitialValue { get => GetValue<double?>("InitialValue"); set => SetValue("InitialValue", value); }
+
+
+        private T GetValue<T>(string key)
+        {
+            if (Characteristics.TryGetValue(key, out object value) && value != null)
+            {
+                var targetType = typeof(T);
+                if (targetType.IsGenericType && targetType.GetGenericTypeDefinition() == typeof(Nullable<>))
+                {
+                    targetType = Nullable.GetUnderlyingType(targetType);
+                }
+                return (T)Convert.ChangeType(value, targetType);
+            }
+            return default(T);
+        }
+
+        private void SetValue(string key, object value)
+        {
+            Characteristics[key] = value;
+            OnPropertyChanged(key);
+        }
+
+        private double? _currentValue;
+
+        [NotMapped]
+        public double? CurrentValue
+        {
+            get => _currentValue;
+            set
+            {
+                if (_currentValue != value)
+                {
+                    _currentValue = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public ICollection<Alarm> Alarms { get; set; }
+
+        public Tag()
+        {
+            Alarms = new List<Alarm>();
+        }
+
+        public Tag(TagType type, string name, string description, string ioAddress) : this()
+        {
+            Type = type;
+            Name = name;
+            Description = description;
+            IOAddress = ioAddress;
+        }
+
+        public void ValidateAndSetScanTime(double? value)
+        {
+            if (!IsInputTag())
+                throw new InvalidOperationException("ScanTime can only be set for input tags (AI, DI).");
+            ScanTime = value;
+        }
+
+        public void ValidateAndSetOnOffScan(bool? value)
+        {
+            if (!IsInputTag())
+                throw new InvalidOperationException("OnOffScan can only be set for input tags (AI, DI).");
+            IsScanning = value;
+        }
+
+        public void ValidateAndSetLowLimit(double? value)
+        {
+            if (!IsAnalogTag())
+                throw new InvalidOperationException("LowLimit can only be set for analog tags (AI, AO).");
+            LowLimit = value;
+        }
+
+        public void ValidateAndSetHighLimit(double? value)
+        {
+            if (!IsAnalogTag())
+                throw new InvalidOperationException("HighLimit can only be set for analog tags (AI, AO).");
+            HighLimit = value;
+        }
+
+        public void ValidateAndSetUnits(string value)
+        {
+            if (!IsAnalogTag())
+                throw new InvalidOperationException("Units can only be set for analog tags (AI, AO).");
+            Units = value;
+        }
+
+        public void ValidateAndSetInitialValue(double? value)
+        {
+            if (!IsOutputTag())
+                throw new InvalidOperationException("InitialValue can only be set for output tags (AO, DO).");
+            InitialValue = value;
+        }
+
+        public void WriteValue(double value)
+        {
+            if (!IsOutputTag())
+                throw new InvalidOperationException("WriteValue can only be called on output tags (AO, DO).");
+
+            if (IsDigitalTag() && value != 0 && value != 1)
+                throw new ArgumentException("Digital tags can only accept values 0 or 1.");
+
+            CurrentValue = value;
+            Console.WriteLine($" Written {value} to tag {Name}");
+        }
+
+        public double GetCurrentValue()
+        {
+            return CurrentValue ?? InitialValue ?? 0;
+        }
+
+        public bool IsInputTag()
+        {
+            return Type == TagType.DI || Type == TagType.AI;
+        }
+
+        public bool IsOutputTag()
+        {
+            return Type == TagType.DO || Type == TagType.AO;
+        }
+
+        public bool IsAnalogTag()
+        {
+            return Type == TagType.AI || Type == TagType.AO;
+        }
+
+        public bool IsDigitalTag()
+        {
+            return Type == TagType.DI || Type == TagType.DO;
+        }
+
+        public bool IsAnalogInputTag()
+        {
+            return IsInputTag() && IsAnalogTag();
+        }
+
+        // Metode za upravljanje alarmima
+        public void AddAlarm(Alarm alarm)
+        {
+            if (!IsAnalogInputTag())
+            {
+                throw new InvalidOperationException("Alarms can only be added to AI (Analog Input) tags.");
+            }
+
+            if (alarm == null)
+            {
+                throw new ArgumentNullException(nameof(alarm));
+            }
+
+            if (Alarms.Any(a => a.Id == alarm.Id))
+            {
+                throw new InvalidOperationException($"Alarm with ID '{alarm.Id}' already exists for this tag.");
+            }
+
+            try
+            {
+                using (var context = new ContextClass())
+                {
+
+                    if (context.Alarms.Any(a => a.Id == alarm.Id))
+                    {
+                        throw new InvalidOperationException($"Alarm with ID '{alarm.Id}' already exists in database.");
+                    }
+
+                    alarm.TagName = this.Name;
+
+                    context.Alarms.Add(alarm);
+                    context.SaveChanges();
+
+                    Console.WriteLine($"Alarm {alarm.Id} saved to database");
+                }
+
+                Alarms.Add(alarm);
+                Console.WriteLine($"Alarm {alarm.Id} added to tag {this.Name}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error adding alarm {alarm.Id}: {ex.Message}");
+                throw;
+            }
+        }
+
+        public bool RemoveAlarm(string alarmId)
+        {
+            if (!IsAnalogInputTag())
+            {
+                throw new InvalidOperationException("Alarms can only be managed on AI (Analog Input) tags.");
+            }
+
+            try
+            {
+                using (var context = new ContextClass())
+                {
+                    var dbAlarm = context.Alarms.FirstOrDefault(a => a.Id == alarmId && a.TagName == this.Name);
+                    if (dbAlarm != null)
+                    {
+                        context.Alarms.Remove(dbAlarm);
+                        context.SaveChanges();
+                        Console.WriteLine($"Alarm {alarmId} removed from database");
+                    }
+                }
+
+                var alarm = Alarms.FirstOrDefault(a => a.Id == alarmId);
+                if (alarm != null)
+                {
+                    bool removed = Alarms.Remove(alarm);
+                    if (removed)
+                    {
+                        Console.WriteLine($"Alarm {alarmId} removed from tag {this.Name}");
+                    }
+                    return removed;
+                }
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error removing alarm {alarmId}: {ex.Message}");
+                throw;
+            }
+        }
+
+        public Alarm GetAlarm(string alarmId)
+        {
+            return Alarms.FirstOrDefault(a => a.Id == alarmId);
+        }
+
+        public List<Alarm> CheckAlarms(double currentValue)
+        {
+            if (!IsAnalogInputTag())
+            {
+                return new List<Alarm>();
+            }
+
+            var newlyTriggeredAlarms = new List<Alarm>();
+
+            foreach (var alarm in Alarms)
+            {
+                if (alarm.TryActivate(currentValue))
+                {
+                    newlyTriggeredAlarms.Add(alarm);
+                }
+            }
+
+            return newlyTriggeredAlarms;
+        }
+
+        public IReadOnlyList<Alarm> GetAlarms()
+        {
+            return (Alarms as List<Alarm>)?.AsReadOnly() ?? Alarms.ToList().AsReadOnly();
+        }
+
+        public List<Alarm> ResetAlarms(double currentValue)
+        {
+            if (!IsAnalogInputTag())
+            {
+                return new List<Alarm>();
+            }
+
+            var resetAlarms = new List<Alarm>();
+
+            foreach (var alarm in Alarms.Where(a => a.IsActive && a.IsAcknowledged))
+            {
+                if (alarm.Reset(currentValue))
+                {
+                    resetAlarms.Add(alarm);
+                }
+            }
+
+            return resetAlarms;
+        }
+
+        public bool AcknowledgeAlarm(string alarmId)
+        {
+            if (!IsAnalogInputTag())
+            {
+                throw new InvalidOperationException("Alarms can only be managed on AI (Analog Input) tags.");
+            }
+
+            var alarm = GetAlarm(alarmId);
+            if (alarm != null)
+            {
+                return alarm.Acknowledge();
+            }
+            return false;
+        }
+
+        public List<Alarm> GetActiveAlarms()
+        {
+            return Alarms.Where(a => a.IsActive).ToList();
+        }
+
+        public List<Alarm> GetUnacknowledgedAlarms()
+        {
+            return Alarms.Where(a => a.IsActive && !a.IsAcknowledged).ToList();
+        }
+
+        public void UpdateAlarm(Alarm updatedAlarm)
+        {
+            if (!IsAnalogInputTag())
+            {
+                throw new InvalidOperationException("Alarms can only be managed on AI (Analog Input) tags.");
+            }
+
+            if (updatedAlarm == null)
+            {
+                throw new ArgumentNullException(nameof(updatedAlarm));
+            }
+
+            try
+            {
+                using (var context = new ContextClass())
+                {
+                    var dbAlarm = context.Alarms.FirstOrDefault(a => a.Id == updatedAlarm.Id && a.TagName == this.Name);
+                    if (dbAlarm == null)
+                    {
+                        throw new InvalidOperationException($"Alarm {updatedAlarm.Id} not found in database");
+                    }
+
+                    dbAlarm.Type = updatedAlarm.Type;
+                    dbAlarm.Limit = updatedAlarm.Limit;
+                    dbAlarm.Message = updatedAlarm.Message;
+
+                    context.SaveChanges();
+                    Console.WriteLine($"Alarm {updatedAlarm.Id} updated in database");
+                }
+
+                var existingAlarm = Alarms.FirstOrDefault(a => a.Id == updatedAlarm.Id);
+                if (existingAlarm != null)
+                {
+                    existingAlarm.Type = updatedAlarm.Type;
+                    existingAlarm.Limit = updatedAlarm.Limit;
+                    existingAlarm.Message = updatedAlarm.Message;
+                    Console.WriteLine($"Alarm {updatedAlarm.Id} updated in memory");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error updating alarm {updatedAlarm.Id}: {ex.Message}");
+                throw;
+            }
+        }
+
+        public void ValidateConfiguration()
+        {
+            if (string.IsNullOrWhiteSpace(Name))
+                throw new InvalidOperationException("Name cannot be null or empty.");
+            if (Name.Length > MAX_NAME_LENGTH)
+                throw new InvalidOperationException($"Name cannot exceed {MAX_NAME_LENGTH} characters.");
+            if (string.IsNullOrWhiteSpace(Description))
+                throw new InvalidOperationException("Description cannot be null or empty.");
+            if (Description.Length > MAX_DESCRIPTION_LENGTH)
+                throw new InvalidOperationException($"Description cannot exceed {MAX_DESCRIPTION_LENGTH} characters.");
+
+            if (string.IsNullOrWhiteSpace(IOAddress))
+                throw new InvalidOperationException("IOAddress cannot be null or empty.");
+            if (IOAddress.Length > MAX_IOADDRESS_LENGTH)
+                throw new InvalidOperationException($"IOAddress cannot exceed {MAX_IOADDRESS_LENGTH} characters.");
+        }
+        public event PropertyChangedEventHandler PropertyChanged;
+        protected void OnPropertyChanged([CallerMemberName] string propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+        public bool? IsScanning
+        {
+            get => _isScanning;
+            set
+            {
+                if (_isScanning != value)
+                {
+                    _isScanning = value;
+                    OnPropertyChanged();
+
+                    ScanStateChanged?.Invoke(this, _isScanning ?? false);
+                }
+            }
+        }
     }
 }
+
