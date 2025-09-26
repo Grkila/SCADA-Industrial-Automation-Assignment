@@ -16,8 +16,7 @@ namespace ScadaGUI.Views
         private void TextBox_PreviewTextInput(object sender, TextCompositionEventArgs e)
         {
             string decimalSeparator = CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator;
-            string pattern = $"^[0-9]+({Regex.Escape(decimalSeparator)}[0-9]*)?$";
-
+            string pattern = $"^-$|^-?[0-9]+({Regex.Escape(decimalSeparator)}[0-9]*)?$";
             TextBox textBox = sender as TextBox;
             string currentText = textBox.Text;
             string futureText = currentText.Insert(textBox.CaretIndex, e.Text);
