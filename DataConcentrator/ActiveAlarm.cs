@@ -9,7 +9,7 @@ namespace DataConcentrator
     public class ActiveAlarm 
     {
         [Key]
-        public int Id { get; set; }  // Add primary key
+        public int Id { get; set; }  
 
         [Required]
         [StringLength(50)]

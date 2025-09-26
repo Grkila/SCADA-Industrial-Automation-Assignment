@@ -27,12 +27,15 @@
                 <DataGrid Grid.Row="0" ItemsSource="{Binding MonitoredTags}" 
                           SelectedItem="{Binding SelectedTag}"
                           AutoGenerateColumns="False" 
-                          CanUserAddRows="False">
+                          CanUserAddRows="False"
+                          IsReadOnly="True">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" IsReadOnly="True" />
-                        <DataGridTextColumn Header="Value" Binding="{Binding CurrentValue, StringFormat={}{0:F2}}" Width="Auto" IsReadOnly="True"/>
-                        <DataGridTextColumn Header="Units" Binding="{Binding Units}" Width="Auto" IsReadOnly="True"/>
-                        <DataGridCheckBoxColumn Header="Scan On" Binding="{Binding IsScanning, Mode=TwoWay}" Width="Auto"/>
+                        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" />
+                        <DataGridTextColumn Header="Value" Binding="{Binding CurrentValue, StringFormat={}{0:F2}}" Width="Auto"/>
+                        <DataGridTextColumn Header="Units" Binding="{Binding Units}" Width="Auto"/>
+
+                        <DataGridCheckBoxColumn Header="Scan On" Binding="{Binding IsScanning}" Width="Auto"/>
+
                     </DataGrid.Columns>
                 </DataGrid>
 
@@ -46,11 +49,6 @@
                         <Button Content="Write to Tag" Margin="10,0,0,0" Padding="10, 5"
                                 Command="{Binding WriteToTagCommand}"/>
                     </StackPanel>
-                    <TextBlock Text="{Binding StatusMessage}" 
-                               Foreground="{Binding StatusMessageColor}" 
-                               FontWeight="Bold"
-                               Margin="0,5,0,0" />
-
                 </StackPanel>
             </Grid>
         </GroupBox>
@@ -58,7 +56,7 @@
         <GroupBox Grid.Column="1" Header="Active Alarms" Margin="10,0,0,0">
             <DataGrid ItemsSource="{Binding ActiveAlarms}" AutoGenerateColumns="False" IsReadOnly="True">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Time" Binding="{Binding Time, StringFormat={}{0:HH:mm:ss}}" Width="Auto"/>
+                    <DataGridTextColumn Header="Time" Binding="{Binding Time, StringFormat={}{0:dd.MM.yyyy HH:mm:ss}}" Width="Auto"/>
                     <DataGridTextColumn Header="Tag Name" Binding="{Binding TagName}" Width="Auto"/>
                     <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="*"/>
                 </DataGrid.Columns>

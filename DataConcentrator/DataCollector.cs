@@ -9,36 +9,30 @@ namespace DataConcentrator
 {
     public class DataCollector : IDisposable
     {
-        // Fields - Note: _db is now ContextClass, not DataCollector
         private readonly ContextClass _db;
         private readonly PLCSimulatorManager _plc;
         private readonly List<ActiveAlarm> _activeAlarms = new List<ActiveAlarm>();
         private readonly Timer _timer;
 
-        // Events matching MockDataConcentratorService
         public event EventHandler ValuesUpdated;
         public event Action<ActiveAlarm> AlarmTriggered;
 
-        // Additional fields for enhanced functionality
         private volatile bool isRunning = false;
         private static readonly object locker = new object();
         private List<Tag> tags;
         private Dictionary<string, System.Threading.Timer> tagTimers;
 
-        // Constructor - Fixed to accept ContextClass instead of DataCollector
         public DataCollector(ContextClass db, PLCSimulatorManager plc)
         {
             _db = db ?? throw new ArgumentNullException(nameof(db));
             _plc = plc ?? throw new ArgumentNullException(nameof(plc));
 
-            // Initialize collections
             _activeAlarms = new List<ActiveAlarm>();
             tagTimers = new Dictionary<string, System.Threading.Timer>();
 
             _timer = new Timer(1);
             _timer.Elapsed += (s, e) => ReadValuesFromPLC();
 
-            // Load configuration and start
             LoadConfiguration();
             _timer.Start();
             isRunning = true;
@@ -46,7 +40,6 @@ namespace DataConcentrator
             Console.WriteLine("DataCollector initialized and started");
         }
 
-        // Main method matching MockDataConcentratorService functionality
         private void ReadValuesFromPLC()
         {
             if (!isRunning) return;
@@ -57,25 +50,28 @@ namespace DataConcentrator
                 {
                     foreach (var tag in GetTags())
                     {
-                        // The rule is still the same: must be an input tag with scanning enabled
                         if (tag.IsScanning != false && tag.IsInputTag())
                         {
-                            // *** NEW LOGIC IS HERE ***
-                            // Get the required scan time. Default to 1000ms if not set.
                             double requiredScanTime = tag.ScanTime ?? 1000;
 
-                            // Check if enough time has passed since the last scan
                             if ((DateTime.Now - tag.LastScanned).TotalMilliseconds >= requiredScanTime)
                             {
                                 try
                                 {
-                                    // It's time to scan this tag!
                                     double currentValue = ReadTagValue(tag);
                                     tag.CurrentValue = currentValue;
 
-                                    // CRUCIAL: Update the last scanned time to now
                                     tag.LastScanned = DateTime.Now;
-
+                                    if (tag.Type == TagType.AI)
+                                    {
+                                        var historyEntry = new TagValueHistory
+                                        {
+                                            TagName = tag.Name,
+                                            Value = currentValue,
+                                            Timestamp = tag.LastScanned
+                                        };
+                                        _db.TagValueHistory.Add(historyEntry);
+                                    }
                                     SaveCurrentValueToDatabase(tag, currentValue);
                                     CheckAlarmsForTag(tag);
                                 }
@@ -95,7 +91,6 @@ namespace DataConcentrator
             }
         }
 
-        // Alarm checking logic matching MockDataConcentratorService
         private void CheckAlarmsForTag(Tag tag)
         {
             if (!tag.CurrentValue.HasValue) return;
@@ -119,7 +114,6 @@ namespace DataConcentrator
                 {
                     isAlarmActiveForTag = true;
 
-                    // Check if this alarm is already active
                     if (!_activeAlarms.Any(a => a.TagName == tag.Name && a.Message == alarm.Message))
                     {
                         var newActiveAlarm = new ActiveAlarm
@@ -131,10 +125,8 @@ namespace DataConcentrator
 
                         _activeAlarms.Add(newActiveAlarm);
 
-                        // Save to database
                         SaveActivatedAlarm(alarm, tag.Name, newActiveAlarm.Time);
 
-                        // Trigger event
                         AlarmTriggered?.Invoke(newActiveAlarm);
 
                         Console.WriteLine($"ALARM TRIGGERED: {tag.Name} - {alarm.Message}");
@@ -142,7 +134,6 @@ namespace DataConcentrator
                 }
             }
 
-            // Remove alarms that are no longer active for this tag
             if (!isAlarmActiveForTag)
             {
                 var alarmsToRemove = _activeAlarms.Where(a => a.TagName == tag.Name).ToList();
@@ -154,7 +145,6 @@ namespace DataConcentrator
             }
         }
 
-        // Public methods matching MockDataConcentratorService interface
         public IEnumerable<Tag> GetTags()
         {
             return tags ?? new List<Tag>();
@@ -177,26 +167,23 @@ namespace DataConcentrator
             _timer?.Dispose();
 
             StopAllTimers();
-            _plc?.Abort();
+            _plc?.Stop();
 
             Console.WriteLine("DataCollector stopped");
         }
 
-        // Additional public methods for enhanced functionality
         public void SetTagScanning(string tagName, bool enable)
         {
             lock (locker)
             {
                 try
                 {
-                    // Update in database
                     var tag = _db.Tags.FirstOrDefault(t => t.Name == tagName);
                     if (tag != null)
                     {
                         tag.IsScanning = enable;
-                        _db.SaveChanges(); // Persists the change
+                        _db.SaveChanges();
 
-                        // Update in the DataCollector's active memory
                         var memoryTag = tags?.FirstOrDefault(t => t.Name == tagName);
                         if (memoryTag != null)
                         {
@@ -221,13 +208,10 @@ namespace DataConcentrator
                 {
                     try
                     {
-                        // Write value to tag
                         tag.CurrentValue = value;
 
-                        // Send to PLC simulator
                         WriteToPLCSimulator(tag, value);
 
-                        // Save to database
                         SaveCurrentValueToDatabase(tag, value);
 
                         Console.WriteLine($"Successfully wrote {value} to tag {tagName}");
@@ -254,12 +238,10 @@ namespace DataConcentrator
             }
         }
 
-        // Configuration management methods
         public void SaveConfiguration()
         {
             try
             {
-                // Save all tags to database
                 _db.SaveChanges();
                 Console.WriteLine("Configuration saved to database");
             }
@@ -276,7 +258,6 @@ namespace DataConcentrator
             {
                 lock (locker)
                 {
-                    // Use GetTags method from ContextClass
                     tags = _db.GetTags().ToList();
                     Console.WriteLine($"Successfully loaded {tags.Count} tags from database");
                 }
@@ -297,11 +278,9 @@ namespace DataConcentrator
             {
                 try
                 {
-                    // Use AddTag method from ContextClass
                     _db.AddTag(tag);
                     _db.SaveChanges();
 
-                    // Add to memory collection
                     tags.Add(tag);
                     Console.WriteLine($"Added tag {tag.Name} to DataCollector");
                 }
@@ -322,14 +301,12 @@ namespace DataConcentrator
             {
                 try
                 {
-                    // Find and remove from database
                     var tagToRemove = _db.Tags.FirstOrDefault(t => t.Name == tagName);
                     if (tagToRemove != null)
                     {
                         _db.DeleteTag(tagToRemove);
                         _db.SaveChanges();
 
-                        // Remove from memory collection
                         var memoryTag = tags?.FirstOrDefault(t => t.Name == tagName);
                         if (memoryTag != null)
                         {
@@ -389,7 +366,6 @@ namespace DataConcentrator
             }
         }
 
-        // Private helper methods
         private double ReadTagValue(Tag tag)
         {
             switch (tag.Type)
@@ -490,7 +466,6 @@ namespace DataConcentrator
             }
         }
 
-        // Implement IDisposable pattern
         private bool disposed = false;
 
         public void Dispose()
@@ -524,7 +499,6 @@ namespace DataConcentrator
             }
         }
 
-        // Add this new method to dynamically remove a tag from the scanning list
         public void OnTagRemoved(Tag tag)
         {
             lock (locker)

@@ -21,6 +21,7 @@ namespace DataConcentrator
         public virtual DbSet<Alarm> Alarms { get; set; }
 
         public virtual DbSet<ActiveAlarm> ActivatedAlarms { get; set; }
+        public virtual DbSet<TagValueHistory> TagValueHistory { get; set; }
 
         protected override void OnModelCreating(DbModelBuilder modelBuilder)
         {
@@ -32,7 +33,6 @@ namespace DataConcentrator
                 .HasForeignKey(a => a.TagName)
                 .WillCascadeOnDelete(true);
 
-            // Configure the CharacteristicsJson column for storing Dictionary as JSON
             modelBuilder.Entity<Tag>()
                 .Property(t => t.CharacteristicsJson)
                 .HasColumnType("NVARCHAR(MAX)")
@@ -44,8 +44,6 @@ namespace DataConcentrator
         public IEnumerable<Alarm> GetAlarms() => Alarms.ToList();
         public void AddTag(Tag tag)
         {
-            // NO LONGER CREATING A NEW OBJECT.
-            // We are trusting the ViewModel to give us a valid, complete tag.
             Tags.Add(tag);
             if (string.IsNullOrEmpty(tag.Description))
             {
@@ -55,13 +53,10 @@ namespace DataConcentrator
         }
         public void DeleteTag(Tag tag)
         {
-            // Find the entity that the context is actually tracking
-            // using its primary key.
             var tagToDelete = Tags.Find(tag.Name);
 
             if (tagToDelete != null)
             {
-                // Now remove the entity that we found
                 Tags.Remove(tagToDelete);
                 SaveChanges();
             }
@@ -71,14 +66,11 @@ namespace DataConcentrator
         {
             try
             {
-                // Simply add the alarm object that the ViewModel prepared.
-                // Do NOT create a new one here.
                 Alarms.Add(alarm);
                 SaveChanges();
             }
             catch (DbEntityValidationException ex)
             {
-                // Your excellent debugging code remains the same
                 foreach (var entityValidationErrors in ex.EntityValidationErrors)
                 {
                     foreach (var validationError in entityValidationErrors.ValidationErrors)

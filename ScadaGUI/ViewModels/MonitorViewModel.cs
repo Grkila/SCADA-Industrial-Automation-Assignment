@@ -1,12 +1,13 @@
-﻿using DataConcentrator;
+
+using DataConcentrator;
 using ScadaGUI.Services;
 using System;
 using System.Collections.ObjectModel;
-using System.Globalization;
+using System.Globalization; 
 using System.Linq;
 using System.Windows;
 using System.Windows.Input;
-using System.Windows.Media;
+using System.Windows.Media; 
 
 namespace ScadaGUI.ViewModels
 {
@@ -22,6 +23,8 @@ namespace ScadaGUI.ViewModels
         public ObservableCollection<Tag> MonitoredTags { get; set; }
         public ObservableCollection<ActiveAlarm> ActiveAlarms { get; set; }
 
+
+        private string _statusMessage;
         public string StatusMessage
         {
             get => _statusMessage;
@@ -63,7 +66,7 @@ namespace ScadaGUI.ViewModels
                 OnPropertyChanged();
                 IsOutputTagSelected = _selectedTag != null && (_selectedTag.Type == TagType.AO || _selectedTag.Type == TagType.DO);
                 ValueToWrite = string.Empty;
-                StatusMessage = string.Empty;
+                StatusMessage = string.Empty; 
             }
         }
 
@@ -72,11 +75,10 @@ namespace ScadaGUI.ViewModels
             _concentrator = concentrator;
             ActiveAlarms = new ObservableCollection<ActiveAlarm>();
             _concentrator.ValuesUpdated += Concentrator_ValuesUpdated;
-
             MonitoredTags = new ObservableCollection<Tag>();
             foreach (var tag in _concentrator.GetTags())
             {
-                tag.ScanStateChanged += OnTagScanStateChanged;
+                tag.ScanStateChanged += OnTagScanStateChanged; 
                 MonitoredTags.Add(tag);
             }
 
@@ -95,7 +97,7 @@ namespace ScadaGUI.ViewModels
         private void OnTagScanStateChanged(Tag changedTag, bool isScanning)
         {
             try
-            {
+            { 
                 _concentrator.SetTagScanning(changedTag.Name, isScanning);
             }
             catch (Exception ex)

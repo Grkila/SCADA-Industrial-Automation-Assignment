@@ -42,7 +42,7 @@ namespace ScadaGUI.ViewModels
 
         public void Cleanup()
         {
-            _plc.Abort();
+            _plc.Stop();
             (MonitorVM.GetDataConcentrator() as DataCollector)?.Stop();
         }
     }
