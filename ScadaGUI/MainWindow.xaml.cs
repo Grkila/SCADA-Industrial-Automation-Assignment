@@ -1,4 +1,5 @@
 ﻿using System.Windows;
+using ScadaGUI.ViewModels; 
 
 namespace ScadaGUI
 {
@@ -7,6 +8,14 @@ namespace ScadaGUI
         public MainWindow()
         {
             InitializeComponent();
+        }
+
+        private void MainWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            if (DataContext is MainViewModel vm)
+            {
+                vm.Cleanup();
+            }
         }
     }
 }

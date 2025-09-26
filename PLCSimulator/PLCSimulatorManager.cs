@@ -21,11 +21,13 @@ namespace PLCSimulator
         private object locker = new object();
         private Thread t1;
         private Thread t2;
+        private volatile bool _isRunning;
+
 
         public PLCSimulatorManager()
         {
             addressValues = new Dictionary<string, double>();
-
+            
             // AI
             addressValues.Add("ADDR001", 0);
             addressValues.Add("ADDR002", 0);
@@ -51,16 +53,17 @@ namespace PLCSimulator
 
         public void StartPLCSimulator()
         {
-            t1 = new Thread(GeneratingAnalogInputs);
+            _isRunning = true;
+            t1 = new Thread(GeneratingAnalogInputs) { IsBackground = true };
             t1.Start();
 
-            t2 = new Thread(GeneratingDigitalInputs);
+            t2 = new Thread(GeneratingDigitalInputs) { IsBackground = true };
             t2.Start();
         }
 
         private void GeneratingAnalogInputs()
         {
-            while (true)
+            while (_isRunning)
             {
                 Thread.Sleep(100);
 
@@ -76,7 +79,7 @@ namespace PLCSimulator
 
         private void GeneratingDigitalInputs()
         {
-            while (true)
+            while (_isRunning)
             {
                 Thread.Sleep(1000);
 
@@ -149,10 +152,9 @@ namespace PLCSimulator
             return minValue + (next * (maxValue - minValue));
         }
 
-        public void Abort()
+        public void Stop()
         {
-            t1.Abort();
-            t2.Abort();
+            _isRunning = false;
         }
     }
 }
