@@ -100,8 +100,9 @@ namespace ScadaGUI.ViewModels
 
         private bool CanAddTag()
         {
-            // Dugme "Add" je aktivno samo ako je uneto ime I ako je izabran tip taga
-            return !string.IsNullOrWhiteSpace(NewTag.Name) && _selectedTagTypeForComboBox.HasValue;
+            return !string.IsNullOrWhiteSpace(NewTag.Name) &&
+                   _selectedTagTypeForComboBox.HasValue &&
+                   !string.IsNullOrWhiteSpace(NewTag.IOAddress);
         }
 
         private void ResetForm()
@@ -141,6 +142,7 @@ namespace ScadaGUI.ViewModels
             // 5. Reset the form for the next entry. This is a crucial step
             //    as it points NewTag to a new, empty object.
             ResetForm();
+            CommandManager.InvalidateRequerySuggested();
         }
 
         private void DeleteTag()
@@ -156,6 +158,7 @@ namespace ScadaGUI.ViewModels
 
                 // Optional: Clear selection after deletion
                 SelectedTag = null;
+                CommandManager.InvalidateRequerySuggested();
             }
         }
     }
