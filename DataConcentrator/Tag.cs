@@ -41,7 +41,6 @@ namespace DataConcentrator
         [Required]
         public TagType Type { get; set; }
 
-        // This is the property your application code will use - not mapped to database
         [NotMapped]
         public Dictionary<string, object> Characteristics { get; private set; } = new Dictionary<string, object>();
 
@@ -51,7 +50,6 @@ namespace DataConcentrator
         [NotMapped]
         private bool? _isScanning;
 
-        // This is the backing property that EF maps to the database
         public string CharacteristicsJson
         {
             get
@@ -93,7 +91,6 @@ namespace DataConcentrator
         public double? InitialValue { get => GetValue<double?>("InitialValue"); set => SetValue("InitialValue", value); }
 
 
-        // Helper metode za rad sa dictionary
         private T GetValue<T>(string key)
         {
             if (Characteristics.TryGetValue(key, out object value) && value != null)
@@ -114,7 +111,6 @@ namespace DataConcentrator
             OnPropertyChanged(key);
         }
 
-        // Dodaj ovo svojstvo u Tag klasu
         private double? _currentValue;
 
         [NotMapped]
@@ -123,11 +119,9 @@ namespace DataConcentrator
             get => _currentValue;
             set
             {
-                // Only update and notify if the value has actually changed
                 if (_currentValue != value)
                 {
                     _currentValue = value;
-                    // This is the crucial line that notifies the UI of the change
                     OnPropertyChanged();
                 }
             }
@@ -148,7 +142,6 @@ namespace DataConcentrator
             IOAddress = ioAddress;
         }
 
-        // Validacione metode
         public void ValidateAndSetScanTime(double? value)
         {
             if (!IsInputTag())
@@ -191,7 +184,6 @@ namespace DataConcentrator
             InitialValue = value;
         }
 
-        // Dodaj metodu za pisanje vrednosti
         public void WriteValue(double value)
         {
             if (!IsOutputTag())
@@ -204,13 +196,11 @@ namespace DataConcentrator
             Console.WriteLine($" Written {value} to tag {Name}");
         }
 
-        // Dodaj metodu za čitanje trenutne vrednosti
         public double GetCurrentValue()
         {
             return CurrentValue ?? InitialValue ?? 0;
         }
 
-        // Helper metode za validaciju tipova
         public bool IsInputTag()
         {
             return Type == TagType.DI || Type == TagType.AI;
@@ -258,23 +248,20 @@ namespace DataConcentrator
             {
                 using (var context = new ContextClass())
                 {
-                    // Check if alarm ID already exists in database
+
                     if (context.Alarms.Any(a => a.Id == alarm.Id))
                     {
                         throw new InvalidOperationException($"Alarm with ID '{alarm.Id}' already exists in database.");
                     }
 
-                    // Set the foreign key
                     alarm.TagName = this.Name;
 
-                    // Save to database
                     context.Alarms.Add(alarm);
                     context.SaveChanges();
 
                     Console.WriteLine($"Alarm {alarm.Id} saved to database");
                 }
 
-                // Add to in-memory collection only after successful database save
                 Alarms.Add(alarm);
                 Console.WriteLine($"Alarm {alarm.Id} added to tag {this.Name}");
             }
@@ -294,7 +281,6 @@ namespace DataConcentrator
 
             try
             {
-                // Remove from database first
                 using (var context = new ContextClass())
                 {
                     var dbAlarm = context.Alarms.FirstOrDefault(a => a.Id == alarmId && a.TagName == this.Name);
@@ -306,7 +292,6 @@ namespace DataConcentrator
                     }
                 }
 
-                // Remove from in-memory collection
                 var alarm = Alarms.FirstOrDefault(a => a.Id == alarmId);
                 if (alarm != null)
                 {
@@ -415,7 +400,6 @@ namespace DataConcentrator
 
             try
             {
-                // Update in database first
                 using (var context = new ContextClass())
                 {
                     var dbAlarm = context.Alarms.FirstOrDefault(a => a.Id == updatedAlarm.Id && a.TagName == this.Name);
@@ -424,7 +408,6 @@ namespace DataConcentrator
                         throw new InvalidOperationException($"Alarm {updatedAlarm.Id} not found in database");
                     }
 
-                    // Update properties
                     dbAlarm.Type = updatedAlarm.Type;
                     dbAlarm.Limit = updatedAlarm.Limit;
                     dbAlarm.Message = updatedAlarm.Message;
@@ -433,7 +416,6 @@ namespace DataConcentrator
                     Console.WriteLine($"Alarm {updatedAlarm.Id} updated in database");
                 }
 
-                // Update in-memory collection
                 var existingAlarm = Alarms.FirstOrDefault(a => a.Id == updatedAlarm.Id);
                 if (existingAlarm != null)
                 {
@@ -450,7 +432,6 @@ namespace DataConcentrator
             }
         }
 
-        // Validacija celokupnog objekta
         public void ValidateConfiguration()
         {
             if (string.IsNullOrWhiteSpace(Name))
@@ -480,9 +461,8 @@ namespace DataConcentrator
                 if (_isScanning != value)
                 {
                     _isScanning = value;
-                    OnPropertyChanged(); // This updates the UI
+                    OnPropertyChanged();
 
-                    // This fires the new event to notify the ViewModel
                     ScanStateChanged?.Invoke(this, _isScanning ?? false);
                 }
             }
