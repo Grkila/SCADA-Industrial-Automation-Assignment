@@ -186,7 +186,7 @@ namespace DataConcentrator
             _timer?.Dispose();
 
             StopAllTimers();
-            _plc?.Abort();
+            _plc?.Stop();
 
             Console.WriteLine("DataCollector stopped");
         }

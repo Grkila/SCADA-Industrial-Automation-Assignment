@@ -4,7 +4,8 @@
         xmlns:vm="clr-namespace:ScadaGUI.ViewModels"
         xmlns:viewModels="clr-namespace:ScadaGUI.ViewModels"
         xmlns:views="clr-namespace:ScadaGUI.Views"
-        Title="SCADA Projekat" Height="600" Width="900">
+        Title="SCADA Projekat" Height="600" Width="900"
+                Closing="MainWindow_Closing">
     <Window.DataContext>
         <vm:MainViewModel />
     </Window.DataContext>

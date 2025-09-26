@@ -100,8 +100,9 @@ namespace ScadaGUI.ViewModels
 
         private bool CanAddTag()
         {
-            // Dugme "Add" je aktivno samo ako je uneto ime I ako je izabran tip taga
-            return !string.IsNullOrWhiteSpace(NewTag.Name) && _selectedTagTypeForComboBox.HasValue;
+            return !string.IsNullOrWhiteSpace(NewTag.Name) &&
+                   _selectedTagTypeForComboBox.HasValue &&
+                   !string.IsNullOrWhiteSpace(NewTag.IOAddress);
         }
 
         private void ResetForm()
