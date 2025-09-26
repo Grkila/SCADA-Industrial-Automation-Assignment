@@ -1,5 +1,8 @@
 ﻿using ScadaGUI.Models;
+using System.Globalization;
+using System.Text.RegularExpressions;
 using System.Windows.Controls;
+using System.Windows.Input;
 
 namespace ScadaGUI.Views
 {
@@ -8,6 +11,24 @@ namespace ScadaGUI.Views
         public TagManagementView()
         {
             InitializeComponent();
+        }
+
+        private void TextBox_PreviewTextInput(object sender, TextCompositionEventArgs e)
+        {
+            string decimalSeparator = CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator;
+            string pattern = $"^-$|^-?[0-9]+({Regex.Escape(decimalSeparator)}[0-9]*)?$";
+            TextBox textBox = sender as TextBox;
+            string currentText = textBox.Text;
+            string futureText = currentText.Insert(textBox.CaretIndex, e.Text);
+
+            if (Regex.IsMatch(futureText, pattern))
+            {
+                e.Handled = false;
+            }
+            else
+            {
+                e.Handled = true;
+            }
         }
 
         private void DataGrid_BeginningEdit(object sender, DataGridBeginningEditEventArgs e)
